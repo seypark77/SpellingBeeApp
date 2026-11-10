@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "BeeReady Spelling Bee",
+    "slug": "beeready-spelling-bee",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.irene.spellingbeeapp",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Allow BeeReady to listen as you spell words out loud letter by letter.",
+        "NSSpeechRecognitionUsageDescription": "Allow BeeReady to recognize the letters you speak during Spelling Bee practice."
+      }
+    },
+    "android": {
+      "package": "com.irene.spellingbeeapp",
+      "permissions": [
+        "INTERNET",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-asset",
+      "expo-status-bar",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow BeeReady to access your microphone so you can spell words out loud."
+        }
+      ]
+    ]
+  }
+}
