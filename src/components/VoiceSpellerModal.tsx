@@ -148,6 +148,25 @@ function getMetroServerOrigin(): string {
   return 'http://192.168.1.197:8081';
 }
 
+function getNativeSpeechRecognitionModule(): any | null {
+  if (Platform.OS === 'web') return null;
+  try {
+    const mod = require('expo-speech-recognition');
+    if (mod?.ExpoSpeechRecognitionModule) {
+      return mod.ExpoSpeechRecognitionModule;
+    }
+  } catch {
+    // Native module not compiled into standard Expo Go client; will fall back cleanly
+  }
+  return null;
+}
+
+const SPELLING_CONTEXT_HINTS = [
+  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+  'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+  'bee', 'cee', 'dee', 'tee', 'vee', 'zee', 'double', 'space', 'hyphen'
+];
+
 export const VoiceSpellerModal: React.FC<VoiceSpellerModalProps> = ({
   visible,
   wordEntry,
@@ -165,6 +184,9 @@ export const VoiceSpellerModal: React.FC<VoiceSpellerModalProps> = ({
   );
 
   const recognitionRef = useRef<any>(null);
+  const nativeSpeechSubsRef = useRef<any[]>([]);
+  const finalTranscriptPartsRef = useRef<string[]>([]);
+  const isNativeSpeechActiveRef = useRef<boolean>(false);
   const audioStreamRef = useRef<any>(null);
   const streamListenerRef = useRef<any>(null);
   const pcmChunksRef = useRef<Float32Array[]>([]);
@@ -188,6 +210,17 @@ export const VoiceSpellerModal: React.FC<VoiceSpellerModalProps> = ({
     };
   }, [visible, initialSpelling]);
 
+  const clearNativeSpeechSubs = () => {
+    for (const sub of nativeSpeechSubsRef.current) {
+      try {
+        sub?.remove?.();
+      } catch {
+        // ignore
+      }
+    }
+    nativeSpeechSubsRef.current = [];
+  };
+
   const cleanupAllVoiceCapture = () => {
     if (recognitionRef.current) {
       try {
@@ -196,6 +229,18 @@ export const VoiceSpellerModal: React.FC<VoiceSpellerModalProps> = ({
         // ignore
       }
       recognitionRef.current = null;
+    }
+    clearNativeSpeechSubs();
+    let hadNativeSpeech = false;
+    if (isNativeSpeechActiveRef.current) {
+      hadNativeSpeech = true;
+      isNativeSpeechActiveRef.current = false;
+      try {
+        const nativeSpeech = getNativeSpeechRecognitionModule();
+        nativeSpeech?.abort?.();
+      } catch {
+        // ignore
+      }
     }
     if (streamListenerRef.current) {
       try {
@@ -218,11 +263,125 @@ export const VoiceSpellerModal: React.FC<VoiceSpellerModalProps> = ({
     pcmChunksRef.current = [];
     setIsListening(false);
     setMicLevel(0);
-    if (hadStream) {
+    if (hadStream || hadNativeSpeech) {
       resetAudioAfterRecording().catch(() => {});
     } else {
       configureAudioSession().catch(() => {});
     }
+  };
+
+  const startNativeSpeechRecognition = async (nativeSpeech: any) => {
+    try {
+      const perm = await nativeSpeech.requestPermissionsAsync();
+      if (!perm?.granted) {
+        setStatusNote(
+          '⚠️ Microphone & Speech Recognition permissions are required. Please enable them in your phone Settings.'
+        );
+        return;
+      }
+
+      await stopSpeaking();
+      clearNativeSpeechSubs();
+      finalTranscriptPartsRef.current = [];
+
+      const resultSub = nativeSpeech.addListener('result', (event: any) => {
+        const segmentText = (event?.results?.[0]?.transcript || '').trim();
+        let combined = '';
+        if (event?.isFinal) {
+          if (segmentText) {
+            finalTranscriptPartsRef.current.push(segmentText);
+          }
+          combined = finalTranscriptPartsRef.current.join(' ').trim();
+        } else {
+          combined = [...finalTranscriptPartsRef.current, segmentText]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+        }
+
+        if (combined) {
+          setRawTranscript(combined);
+          const parsed = parseSpokenSpelling(combined);
+          setParsedLetters(parsed);
+          if (event?.isFinal && parsed) {
+            triggerHaptic('success');
+            setStatusNote(
+              `✅ Heard: "${combined}" → ${parsed.toUpperCase()}. Check below or tap Submit!`
+            );
+          }
+        }
+      });
+
+      const volumeSub = nativeSpeech.addListener('volumechange', (event: any) => {
+        const val = typeof event?.value === 'number' ? event.value : 0;
+        const normalized = Math.min(1, Math.max(0.06, (val + 2) / 10));
+        setMicLevel(normalized);
+      });
+
+      const errorSub = nativeSpeech.addListener('error', (event: any) => {
+        const code = event?.error || '';
+        isNativeSpeechActiveRef.current = false;
+        setIsListening(false);
+        setMicLevel(0);
+        resetAudioAfterRecording().catch(() => {});
+
+        if (code === 'aborted') return;
+        if (code === 'no-speech' || code === 'speech-timeout') {
+          setStatusNote(
+            '🤔 No speech detected. Tap "Start Voice Mic" and speak each letter clearly!'
+          );
+          return;
+        }
+        setStatusNote(
+          `⚠️ Speech recognition stopped (${event?.message || code || 'unavailable'}). Try again or type below.`
+        );
+      });
+
+      const endSub = nativeSpeech.addListener('end', () => {
+        isNativeSpeechActiveRef.current = false;
+        setIsListening(false);
+        setMicLevel(0);
+        resetAudioAfterRecording().catch(() => {});
+      });
+
+      nativeSpeechSubsRef.current = [resultSub, volumeSub, errorSub, endSub];
+      isNativeSpeechActiveRef.current = true;
+
+      const spacedTarget = wordEntry.word.toUpperCase().split('').join(' ');
+      nativeSpeech.start({
+        lang: 'en-US',
+        interimResults: true,
+        continuous: true,
+        addsPunctuation: false,
+        contextualStrings: [wordEntry.word, spacedTarget, ...SPELLING_CONTEXT_HINTS],
+        volumeChangeEventOptions: {
+          enabled: true,
+          intervalMillis: 100
+        }
+      });
+
+      setIsListening(true);
+      setStatusNote(
+        '🔴 Listening on-device! Speak the letters clearly ("B - U - N - N - Y"), then tap "Stop & Recognize"!'
+      );
+    } catch (err: any) {
+      console.warn('Native speech recognition start failed, falling back to audio stream:', err);
+      isNativeSpeechActiveRef.current = false;
+      clearNativeSpeechSubs();
+      await startMobileAudioStream();
+    }
+  };
+
+  const stopNativeSpeechRecognition = async (nativeSpeech: any) => {
+    try {
+      nativeSpeech.stop();
+    } catch {
+      // ignore
+    }
+    isNativeSpeechActiveRef.current = false;
+    setIsListening(false);
+    setMicLevel(0);
+    await resetAudioAfterRecording();
   };
 
   const startMobileAudioStream = async () => {
@@ -409,8 +568,19 @@ export const VoiceSpellerModal: React.FC<VoiceSpellerModalProps> = ({
     triggerHaptic('light');
     if (isTranscribing) return;
 
-    // 1. Mobile (iOS / Android): use native microphone PCM stream + Whisper transcription
+    // 1. Mobile (iOS / Android): Prefer native OS speech recognition (Apple Speech / Google Speech)
+    //    Falls back cleanly to Expo Audio stream + local Whisper if running inside standard Expo Go.
     if (Platform.OS !== 'web') {
+      const nativeSpeech = getNativeSpeechRecognitionModule();
+      if (nativeSpeech) {
+        if (isListening || isNativeSpeechActiveRef.current) {
+          await stopNativeSpeechRecognition(nativeSpeech);
+        } else {
+          await startNativeSpeechRecognition(nativeSpeech);
+        }
+        return;
+      }
+
       if (isListening) {
         await stopAndTranscribeMobileStream();
       } else {

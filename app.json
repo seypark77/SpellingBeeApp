@@ -1,29 +1,47 @@
 {
   "expo": {
-    "name": "BeeReady Spelling Bee",
+    "name": "BeeReady: Spelling Bee Study",
     "slug": "beeready-spelling-bee",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1342"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.irene.spellingbeeapp",
+      "buildNumber": "1",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "Allow BeeReady to listen as you spell words out loud letter by letter.",
         "NSSpeechRecognitionUsageDescription": "Allow BeeReady to recognize the letters you speak during Spelling Bee practice."
       }
     },
     "android": {
       "package": "com.irene.spellingbeeapp",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B1342"
+      },
       "permissions": [
         "INTERNET",
         "RECORD_AUDIO",
-        "MODIFY_AUDIO_SETTINGS"
+        "MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-sqlite",
@@ -34,7 +52,25 @@
         {
           "microphonePermission": "Allow BeeReady to access your microphone so you can spell words out loud."
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow BeeReady to access your microphone so you can spell words out loud.",
+          "speechRecognitionPermission": "Allow BeeReady to recognize the letters you speak during Spelling Bee practice.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.as",
+            "com.google.android.tts",
+            "com.samsung.android.bixby.agent"
+          ]
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4e06e3df-12ad-4253-9739-a21943cc1a30"
+      }
+    }
   }
 }

@@ -119,7 +119,9 @@ export const SpellingKeypad: React.FC<SpellingKeypadProps> = ({
         >
           <Text style={styles.specialKeyText}>SPACE</Text>
         </TouchableOpacity>
+      </View>
 
+      <View style={styles.submitRow}>
         <TouchableOpacity
           style={[
             styles.submitKey,
@@ -127,6 +129,7 @@ export const SpellingKeypad: React.FC<SpellingKeypadProps> = ({
           ]}
           onPress={onSubmit}
           disabled={disabled || !value.trim()}
+          activeOpacity={0.8}
         >
           <Text style={styles.submitKeyText}>CHECK ✓</Text>
         </TouchableOpacity>
@@ -194,7 +197,7 @@ const styles = StyleSheet.create({
   },
   specialKey: {
     flex: 1,
-    height: 42,
+    height: 40,
     backgroundColor: '#334155',
     borderRadius: 10,
     justifyContent: 'center',
@@ -204,19 +207,23 @@ const styles = StyleSheet.create({
     borderBottomColor: '#0F172A'
   },
   spaceKey: {
-    flex: 1.2
+    flex: 1.3
   },
   specialKeyText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: '#F8FAFC',
     letterSpacing: 0.4
   },
+  submitRow: {
+    paddingHorizontal: 4,
+    marginTop: 8
+  },
   submitKey: {
-    flex: 1.5,
-    height: 42,
+    width: '100%',
+    height: 46,
     backgroundColor: '#FFC72C',
-    borderRadius: 10,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderBottomWidth: 3,
@@ -227,9 +234,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#334155'
   },
   submitKeyText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '900',
     color: '#0F172A',
-    letterSpacing: 0.5
+    letterSpacing: 0.8
   }
 });

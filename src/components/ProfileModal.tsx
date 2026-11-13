@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { CharacterAvatar } from './CharacterAvatar';
 import { SpellerProfile } from '../types/spelling';
 import { AVATAR_OPTIONS, getBeeRank } from '../utils/spellingUtils';
 
@@ -21,7 +22,11 @@ interface ProfileModalProps {
   onDeleteProfile: (profileId: number) => void;
 }
 
-const GRADE_OPTIONS = ['1st–3rd Grade (One Bee)', '4th–6th Grade (Two Bee)', '7th–8th Grade (Three Bee)'];
+const GRADE_OPTIONS = [
+  { label: '🐝 Beginner', value: 'Level 1 • Beginner (One Bee)' },
+  { label: '🐝🐝 Intermediate', value: 'Level 2 • Intermediate (Two Bee)' },
+  { label: '🐝🐝🐝 Advanced', value: 'Level 3 • Advanced (Three Bee)' }
+];
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   visible,
@@ -35,7 +40,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('🐝');
-  const [selectedGrade, setSelectedGrade] = useState(GRADE_OPTIONS[0]);
+  const [selectedGrade, setSelectedGrade] = useState(GRADE_OPTIONS[1].value);
 
   const handleCreate = () => {
     if (!newName.trim()) return;
@@ -50,15 +55,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       <View style={styles.overlay}>
         <View style={styles.card}>
           <View style={styles.headerRow}>
-            <Text style={styles.title}>🐝 Speller Profiles</Text>
+            <Text style={styles.headerEmoji}>👤</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>✕</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.subtitle}>
-            Switch between siblings or family members! Each speller has their own Honey Points,
-            Bee Rank, and Wrong Word Bank saved on this device.
-          </Text>
 
           {!isCreating ? (
             <>
@@ -76,23 +77,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       }}
                     >
                       <View style={styles.avatarCircle}>
-                        <Text style={styles.avatarEmoji}>{prof.avatar}</Text>
+                        <CharacterAvatar
+                          customization={prof.customization}
+                          size={42}
+                          showBackdrop={false}
+                        />
                       </View>
                       <View style={styles.profileInfo}>
                         <View style={styles.nameRow}>
                           <Text style={styles.profileName}>{prof.name}</Text>
-                          {isActive && (
-                            <View style={styles.activeBadge}>
-                              <Text style={styles.activeBadgeText}>ACTIVE</Text>
-                            </View>
-                          )}
+                          {isActive && <Text style={styles.activeCheck}>✅</Text>}
                         </View>
-                        <Text style={styles.profileMeta}>
-                          {rank.emoji} {rank.title} • {prof.grade}
-                        </Text>
                         <Text style={styles.profileStats}>
-                          🍯 {prof.honeyPoints} pts • 🔥 Best Streak: {prof.bestStreak} • ✅{' '}
-                          {prof.totalCorrect} words
+                          {rank.emoji}  •  🍯 {prof.honeyPoints}  •  🔥 {prof.bestStreak}  •  ✅{' '}
+                          {prof.totalCorrect}
                         </Text>
                       </View>
                       {profiles.length > 1 && (
@@ -112,22 +110,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 style={styles.addProfileBtn}
                 onPress={() => setIsCreating(true)}
               >
-                <Text style={styles.addProfileBtnText}>+ Add Another Speller Profile</Text>
+                <Text style={styles.addProfileBtnText}>➕</Text>
               </TouchableOpacity>
             </>
           ) : (
             <View style={styles.createForm}>
-              <Text style={styles.formLabel}>SPELLER NAME</Text>
               <TextInput
                 style={styles.input}
                 value={newName}
                 onChangeText={setNewName}
-                placeholder="Enter child's name (e.g., Emma, Noah)"
+                placeholder="👤 Name..."
                 placeholderTextColor="#94A3B8"
                 autoFocus
               />
 
-              <Text style={styles.formLabel}>CHOOSE BEE AVATAR</Text>
               <View style={styles.avatarGrid}>
                 {AVATAR_OPTIONS.map((av) => (
                   <TouchableOpacity
@@ -143,24 +139,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 ))}
               </View>
 
-              <Text style={styles.formLabel}>SELECT GRADE DIVISION</Text>
               <View style={styles.gradeList}>
                 {GRADE_OPTIONS.map((gr) => (
                   <TouchableOpacity
-                    key={gr}
+                    key={gr.value}
                     style={[
                       styles.gradeOption,
-                      selectedGrade === gr && styles.gradeOptionSelected
+                      selectedGrade === gr.value && styles.gradeOptionSelected
                     ]}
-                    onPress={() => setSelectedGrade(gr)}
+                    onPress={() => setSelectedGrade(gr.value)}
                   >
                     <Text
                       style={[
                         styles.gradeOptionText,
-                        selectedGrade === gr && styles.gradeOptionTextSelected
+                        selectedGrade === gr.value && styles.gradeOptionTextSelected
                       ]}
                     >
-                      {gr}
+                      {gr.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -171,14 +166,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   style={styles.cancelBtn}
                   onPress={() => setIsCreating(false)}
                 >
-                  <Text style={styles.cancelBtnText}>Back</Text>
+                  <Text style={styles.cancelBtnText}>↩️</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.saveBtn, !newName.trim() && styles.disabledBtn]}
                   disabled={!newName.trim()}
                   onPress={handleCreate}
                 >
-                  <Text style={styles.saveBtnText}>Create Speller ✓</Text>
+                  <Text style={styles.saveBtnText}>✓</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -192,83 +187,78 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16
   },
   card: {
     width: '100%',
-    maxWidth: 460,
+    maxWidth: 440,
     maxHeight: '88%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 28,
     padding: 20,
     borderWidth: 3,
-    borderColor: '#FFC72C'
+    borderBottomWidth: 6,
+    borderColor: '#FFC72C',
+    borderBottomColor: '#D97706'
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6
+    marginBottom: 14
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#0F172A'
+  headerEmoji: {
+    fontSize: 34
   },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center'
   },
   closeBtnText: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
     color: '#475569'
   },
-  subtitle: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 18,
-    marginBottom: 14
-  },
   listScroll: {
-    maxHeight: 310,
+    maxHeight: 320,
     marginBottom: 14
   },
   profileItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 20,
     backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
+    borderWidth: 2,
+    borderBottomWidth: 4,
     borderColor: '#E2E8F0',
     marginBottom: 10
   },
   profileItemActive: {
     backgroundColor: '#FFFBEB',
     borderColor: '#F59E0B',
-    borderWidth: 2
+    borderBottomColor: '#D97706'
   },
   avatarCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 54,
+    height: 54,
+    borderRadius: 18,
     backgroundColor: '#FEF3C7',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 1.5,
+    marginRight: 14,
+    borderWidth: 2,
     borderColor: '#F59E0B'
   },
   avatarEmoji: {
-    fontSize: 24
+    fontSize: 28
   },
   profileInfo: {
     flex: 1
@@ -277,124 +267,106 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 2
+    marginBottom: 4
   },
   profileName: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A'
-  },
-  activeBadge: {
-    backgroundColor: '#FFC72C',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6
-  },
-  activeBadgeText: {
-    fontSize: 10,
+    fontSize: 20,
     fontWeight: '900',
     color: '#0F172A'
   },
-  profileMeta: {
-    fontSize: 12,
-    color: '#475569',
-    fontWeight: '600',
-    marginBottom: 2
+  activeCheck: {
+    fontSize: 18
   },
   profileStats: {
-    fontSize: 11,
-    color: '#B45309',
-    fontWeight: '700'
+    fontSize: 14,
+    color: '#334155',
+    fontWeight: '800'
   },
   deleteBtn: {
-    padding: 8
+    padding: 8,
+    marginLeft: 6
   },
   deleteBtnText: {
-    fontSize: 16
+    fontSize: 20
   },
   addProfileBtn: {
-    backgroundColor: '#FFC72C',
+    backgroundColor: '#0F172A',
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 18,
     alignItems: 'center',
-    borderBottomWidth: 3,
-    borderBottomColor: '#D97706'
+    borderBottomWidth: 5,
+    borderBottomColor: '#334155'
   },
   addProfileBtnText: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#0F172A'
+    fontSize: 24
   },
   createForm: {
     marginTop: 4
   },
-  formLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
-    marginBottom: 6,
-    letterSpacing: 0.5
-  },
   input: {
     backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: '#CBD5E1',
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 14,
-    paddingVertical: 11,
-    fontSize: 15,
-    fontWeight: '700',
+    paddingVertical: 12,
+    fontSize: 18,
     color: '#0F172A',
+    fontWeight: '800',
     marginBottom: 14
   },
   avatarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 14
+    gap: 10,
+    marginBottom: 14,
+    justifyContent: 'center'
   },
   avatarChoice: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderBottomWidth: 4,
+    borderColor: '#CBD5E1',
     justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0'
+    alignItems: 'center'
   },
   avatarChoiceSelected: {
     backgroundColor: '#FEF3C7',
     borderColor: '#F59E0B',
-    borderWidth: 2
+    borderBottomColor: '#D97706'
   },
   avatarChoiceEmoji: {
-    fontSize: 22
+    fontSize: 26
   },
   gradeList: {
-    gap: 6,
+    gap: 8,
     marginBottom: 16
   },
   gradeOption: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
     backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0'
+    borderWidth: 2,
+    borderBottomWidth: 4,
+    borderColor: '#CBD5E1',
+    alignItems: 'center'
   },
   gradeOptionSelected: {
     backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B'
+    borderColor: '#F59E0B',
+    borderBottomColor: '#D97706'
   },
   gradeOptionText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#475569'
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#334155'
   },
   gradeOptionTextSelected: {
-    color: '#92400E',
-    fontWeight: '800'
+    color: '#92400E'
   },
   formActions: {
     flexDirection: 'row',
@@ -402,29 +374,29 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {
     flex: 1,
+    paddingVertical: 14,
+    borderRadius: 18,
     backgroundColor: '#E2E8F0',
-    paddingVertical: 13,
-    borderRadius: 12,
-    alignItems: 'center'
+    alignItems: 'center',
+    borderBottomWidth: 5,
+    borderBottomColor: '#94A3B8'
   },
   cancelBtnText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#334155'
+    fontSize: 22
   },
   saveBtn: {
-    flex: 1.4,
-    backgroundColor: '#FFC72C',
-    paddingVertical: 13,
-    borderRadius: 12,
+    flex: 1.5,
+    paddingVertical: 14,
+    borderRadius: 18,
+    backgroundColor: '#58CC02',
     alignItems: 'center',
-    borderBottomWidth: 3,
-    borderBottomColor: '#D97706'
+    borderBottomWidth: 5,
+    borderBottomColor: '#46A302'
   },
   saveBtnText: {
-    fontSize: 14,
+    fontSize: 24,
     fontWeight: '900',
-    color: '#0F172A'
+    color: '#FFFFFF'
   },
   disabledBtn: {
     opacity: 0.45

@@ -1,9 +1,30 @@
 import { Platform } from 'react-native';
 import wordsData from '../data/words.json';
-import { SpellerProfile, WordEntry, WordMasteryStatus, WordProgress } from '../types/spelling';
+import {
+  CharacterCustomization,
+  SpellerProfile,
+  WordEntry,
+  WordMasteryStatus,
+  WordProgress
+} from '../types/spelling';
+import {
+  DEFAULT_CUSTOMIZATION,
+  DEFAULT_OWNED_ITEMS,
+  getOwnedItems,
+  normalizeCustomization,
+  normalizeProfileCustomization
+} from '../utils/characterShopData';
 import { evaluateUnlockedBadges } from '../utils/spellingUtils';
 
 const ALL_WORDS: WordEntry[] = wordsData as WordEntry[];
+
+/**
+ * DEFINITION SOURCE TOGGLE:
+ * - false (DEFAULT): Uses the clean, student-friendly, copyright-safe paraphrased definitions.
+ * - true: Easily switches back to the original official Merriam-Webster / Scripps definitions.
+ * You can toggle this flag anytime to switch definitions across the entire app!
+ */
+export const USE_OFFICIAL_DEFINITIONS = false;
 
 let sqliteDb: any = null;
 let useFallbackStorage = Platform.OS === 'web';
@@ -16,23 +37,51 @@ interface FallbackState {
   progress: Record<string, WordProgress>; // key: `${profileId}_${wordId}`
 }
 
+function normalizeWordGradeLabel(label: string): string {
+  if (!label) return 'Intermediate';
+  if (label.includes('1st') || label.includes('3rd')) return 'Beginner';
+  if (label.includes('4th') || label.includes('6th')) return 'Intermediate';
+  if (label.includes('7th') || label.includes('8th')) return 'Advanced';
+  return label;
+}
+
+function normalizeProfileGrade(grade: string): string {
+  if (!grade) return 'Level 2 • Intermediate';
+  if (grade.includes('1st') || grade.includes('3rd')) return 'Level 1 • Beginner (One Bee)';
+  if (grade.includes('4th') || grade.includes('6th')) return 'Level 2 • Intermediate (Two Bee)';
+  if (grade.includes('7th') || grade.includes('8th')) return 'Level 3 • Advanced (Three Bee)';
+  return grade;
+}
+
 function loadFallbackState(): FallbackState {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       const raw = window.localStorage.getItem(WEB_STORAGE_KEY);
       if (raw) {
-        return JSON.parse(raw);
+        const parsed: FallbackState = JSON.parse(raw);
+        if (Array.isArray(parsed.profiles)) {
+          parsed.profiles = parsed.profiles.map((p) =>
+            normalizeProfileCustomization({
+              ...p,
+              grade: normalizeProfileGrade(p.grade)
+            })
+          );
+        }
+        return parsed;
       }
     }
   } catch {
     // ignore
   }
-  const defaultProfile: SpellerProfile = {
+  const defaultProfile: SpellerProfile = normalizeProfileCustomization({
     id: 1,
     name: 'Speller #1',
     avatar: '🐝',
-    grade: '4th–6th Grade',
+    grade: 'Level 2 • Intermediate',
     honeyPoints: 0,
+    spentHoney: 0,
+    ownedItems: [...DEFAULT_OWNED_ITEMS],
+    customization: { ...DEFAULT_CUSTOMIZATION },
     currentStreak: 0,
     bestStreak: 0,
     totalPracticed: 0,
@@ -40,7 +89,7 @@ function loadFallbackState(): FallbackState {
     voiceSpellsCount: 0,
     unlockedBadges: [],
     createdAt: new Date().toISOString()
-  };
+  });
   return {
     profiles: [defaultProfile],
     activeProfileId: 1,
@@ -89,6 +138,7 @@ export async function initDatabase(): Promise<void> {
         alt_spellings TEXT NOT NULL,
         part_of_speech TEXT NOT NULL,
         definition TEXT NOT NULL,
+        official_definition TEXT,
         level TEXT NOT NULL,
         grade_label TEXT NOT NULL,
         example_sentence TEXT NOT NULL,
@@ -102,6 +152,9 @@ export async function initDatabase(): Promise<void> {
         avatar TEXT NOT NULL,
         grade TEXT NOT NULL,
         honey_points INTEGER NOT NULL DEFAULT 0,
+        spent_honey INTEGER NOT NULL DEFAULT 0,
+        owned_items TEXT NOT NULL DEFAULT '[]',
+        customization TEXT NOT NULL DEFAULT '{}',
         current_streak INTEGER NOT NULL DEFAULT 0,
         best_streak INTEGER NOT NULL DEFAULT 0,
         total_practiced INTEGER NOT NULL DEFAULT 0,
@@ -129,29 +182,61 @@ export async function initDatabase(): Promise<void> {
       );
     `);
 
-    // Seed all 450 words into SQLite if not yet populated
-    const countRow = await sqliteDb.getFirstAsync('SELECT COUNT(*) as cnt FROM words');
-    if (!countRow || countRow.cnt < ALL_WORDS.length) {
+    // Ensure official_definition column exists if words table was already created in an earlier build
+    try {
+      await sqliteDb.execAsync(`ALTER TABLE words ADD COLUMN official_definition TEXT;`);
+    } catch {
+      // Column already exists or table was just created
+    }
+
+    // Ensure profile customization columns exist for existing builds
+    try {
+      await sqliteDb.execAsync(`ALTER TABLE profiles ADD COLUMN spent_honey INTEGER NOT NULL DEFAULT 0;`);
+    } catch {
+      // Column already exists
+    }
+    try {
+      await sqliteDb.execAsync(`ALTER TABLE profiles ADD COLUMN owned_items TEXT NOT NULL DEFAULT '[]';`);
+    } catch {
+      // Column already exists
+    }
+    try {
+      await sqliteDb.execAsync(`ALTER TABLE profiles ADD COLUMN customization TEXT NOT NULL DEFAULT '{}';`);
+    } catch {
+      // Column already exists
+    }
+
+    // Seed/Update all 450 words into SQLite with version tracking
+    const wordsVersionRow = await sqliteDb.getFirstAsync(
+      "SELECT value FROM app_settings WHERE key = 'words_dataset_version'"
+    );
+    if (!wordsVersionRow || wordsVersionRow.value !== 'v2_paraphrased') {
       await sqliteDb.withTransactionAsync(async () => {
         for (const w of ALL_WORDS) {
           await sqliteDb.runAsync(
             `INSERT OR REPLACE INTO words
-              (id, word, alt_spellings, part_of_speech, definition, level, grade_label, example_sentence, blanked_sentence, mw_url)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, word, alt_spellings, part_of_speech, definition, official_definition, level, grade_label, example_sentence, blanked_sentence, mw_url)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               w.id,
               w.word,
               JSON.stringify(w.altSpellings || []),
               w.partOfSpeech,
               w.definition,
+              w.officialDefinition || w.definition,
               w.level,
               w.gradeLabel,
               w.exampleSentence,
               w.blankedSentence,
-              w.mwUrl
+              w.dictionaryUrl ||
+                w.mwUrl ||
+                `https://www.google.com/search?q=define+${encodeURIComponent(w.word)}`
             ]
           );
         }
+        await sqliteDb.runAsync(
+          "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('words_dataset_version', 'v2_paraphrased')"
+        );
       });
     }
 
@@ -160,9 +245,16 @@ export async function initDatabase(): Promise<void> {
     if (!profileCount || profileCount.cnt === 0) {
       const now = new Date().toISOString();
       const res = await sqliteDb.runAsync(
-        `INSERT INTO profiles (name, avatar, grade, honey_points, current_streak, best_streak, total_practiced, total_correct, voice_spells_count, unlocked_badges, created_at)
-         VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, '[]', ?)`,
-        ['Speller #1', '🐝', '4th–6th Grade', now]
+        `INSERT INTO profiles (name, avatar, grade, honey_points, spent_honey, owned_items, customization, current_streak, best_streak, total_practiced, total_correct, voice_spells_count, unlocked_badges, created_at)
+         VALUES (?, ?, ?, 0, 0, ?, ?, 0, 0, 0, 0, 0, '[]', ?)`,
+        [
+          'Speller #1',
+          '🐝',
+          'Level 2 • Intermediate',
+          JSON.stringify(DEFAULT_OWNED_ITEMS),
+          JSON.stringify(DEFAULT_CUSTOMIZATION),
+          now
+        ]
       );
       await sqliteDb.runAsync(
         `INSERT OR REPLACE INTO app_settings (key, value) VALUES ('active_profile_id', ?)`,
@@ -179,27 +271,32 @@ export async function initDatabase(): Promise<void> {
 
 export async function getAllWordsFromDb(): Promise<WordEntry[]> {
   if (useFallbackStorage || !sqliteDb) {
+    if (USE_OFFICIAL_DEFINITIONS) {
+      return ALL_WORDS.map((w) => ({
+        ...w,
+        definition: w.officialDefinition || w.definition
+      }));
+    }
     return ALL_WORDS;
   }
   try {
     const rows = await sqliteDb.getAllAsync('SELECT * FROM words ORDER BY id ASC');
     if (!rows || rows.length === 0) return ALL_WORDS;
-    const audioById: Record<number, string | undefined> = {};
-    for (const w of ALL_WORDS) {
-      audioById[w.id] = w.audioUrl;
-    }
     return rows.map((r: any) => ({
       id: r.id,
       word: r.word,
       altSpellings: JSON.parse(r.alt_spellings || '[]'),
       partOfSpeech: r.part_of_speech,
-      definition: r.definition,
+      definition:
+        USE_OFFICIAL_DEFINITIONS && r.official_definition
+          ? r.official_definition
+          : r.definition,
+      officialDefinition: r.official_definition || r.definition,
       level: r.level,
-      gradeLabel: r.grade_label,
+      gradeLabel: normalizeWordGradeLabel(r.grade_label),
       exampleSentence: r.example_sentence,
       blankedSentence: r.blanked_sentence,
-      mwUrl: r.mw_url,
-      audioUrl: audioById[r.id] || ''
+      dictionaryUrl: r.mw_url || `https://www.google.com/search?q=define+${encodeURIComponent(r.word)}`
     }));
   } catch {
     return ALL_WORDS;
@@ -207,12 +304,28 @@ export async function getAllWordsFromDb(): Promise<WordEntry[]> {
 }
 
 function mapProfileRow(r: any): SpellerProfile {
-  return {
+  let parsedOwned: string[] = [];
+  let parsedCustom: Partial<CharacterCustomization> | null = null;
+  try {
+    parsedOwned = JSON.parse(r.owned_items || '[]');
+  } catch {
+    parsedOwned = [];
+  }
+  try {
+    parsedCustom = JSON.parse(r.customization || '{}');
+  } catch {
+    parsedCustom = null;
+  }
+
+  return normalizeProfileCustomization({
     id: r.id,
     name: r.name,
     avatar: r.avatar,
-    grade: r.grade,
+    grade: normalizeProfileGrade(r.grade),
     honeyPoints: r.honey_points,
+    spentHoney: r.spent_honey || 0,
+    ownedItems: getOwnedItems({ ownedItems: parsedOwned }),
+    customization: normalizeCustomization(parsedCustom),
     currentStreak: r.current_streak,
     bestStreak: r.best_streak,
     totalPracticed: r.total_practiced,
@@ -220,7 +333,7 @@ function mapProfileRow(r: any): SpellerProfile {
     voiceSpellsCount: r.voice_spells_count || 0,
     unlockedBadges: JSON.parse(r.unlocked_badges || '[]'),
     createdAt: r.created_at
-  };
+  });
 }
 
 export async function getProfiles(): Promise<{
@@ -271,12 +384,15 @@ export async function createProfile(
   if (useFallbackStorage || !sqliteDb) {
     const state = getFallbackState();
     const nextId = state.profiles.reduce((max, p) => Math.max(max, p.id), 0) + 1;
-    const newProfile: SpellerProfile = {
+    const newProfile: SpellerProfile = normalizeProfileCustomization({
       id: nextId,
       name: cleanName,
       avatar,
       grade,
       honeyPoints: 0,
+      spentHoney: 0,
+      ownedItems: [...DEFAULT_OWNED_ITEMS],
+      customization: { ...DEFAULT_CUSTOMIZATION },
       currentStreak: 0,
       bestStreak: 0,
       totalPracticed: 0,
@@ -284,7 +400,7 @@ export async function createProfile(
       voiceSpellsCount: 0,
       unlockedBadges: [],
       createdAt: now
-    };
+    });
     state.profiles.push(newProfile);
     state.activeProfileId = nextId;
     saveFallbackState(state);
@@ -292,9 +408,16 @@ export async function createProfile(
   }
 
   const res = await sqliteDb.runAsync(
-    `INSERT INTO profiles (name, avatar, grade, honey_points, current_streak, best_streak, total_practiced, total_correct, voice_spells_count, unlocked_badges, created_at)
-     VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, '[]', ?)`,
-    [cleanName, avatar, grade, now]
+    `INSERT INTO profiles (name, avatar, grade, honey_points, spent_honey, owned_items, customization, current_streak, best_streak, total_practiced, total_correct, voice_spells_count, unlocked_badges, created_at)
+     VALUES (?, ?, ?, 0, 0, ?, ?, 0, 0, 0, 0, 0, '[]', ?)`,
+    [
+      cleanName,
+      avatar,
+      grade,
+      JSON.stringify(DEFAULT_OWNED_ITEMS),
+      JSON.stringify(DEFAULT_CUSTOMIZATION),
+      now
+    ]
   );
   const newId = Number(res.lastInsertRowId);
   await setActiveProfile(newId);
@@ -454,8 +577,8 @@ export async function recordWordAttempt(params: {
 
   const newStreak = isCorrect ? profile.currentStreak + 1 : 0;
   const bestStreak = Math.max(profile.bestStreak, newStreak);
-  // Base 10 honey points per correct answer + streak bonus (up to +25 bonus per word!)
-  const streakBonus = isCorrect ? Math.min(25, Math.floor(newStreak / 2) * 5) : 0;
+  // Base 10 honey points per correct answer + gradual streak bonus (+1 per streak, up to +10 bonus per word)
+  const streakBonus = isCorrect ? Math.min(10, Math.max(0, newStreak - 1)) : 0;
   const pointsEarned = isCorrect ? 10 + streakBonus : 2; // +2 effort honey even when learning from a mistake!
 
   const updatedProfile: SpellerProfile = {
@@ -551,5 +674,35 @@ export async function toggleWordReviewMastery(
   await sqliteDb.runAsync(
     `UPDATE word_progress SET status = ?, review_streak = ? WHERE profile_id = ? AND word_id = ?`,
     [newStatus, newStreak, profileId, wordId]
+  );
+}
+
+export async function saveProfileCustomization(
+  profileId: number,
+  payload: {
+    spentHoney: number;
+    ownedItems: string[];
+    customization: CharacterCustomization;
+  }
+): Promise<void> {
+  const safeSpent = Math.max(0, Math.floor(payload.spentHoney || 0));
+  const safeOwned = getOwnedItems({ ownedItems: payload.ownedItems });
+  const safeCustom = normalizeCustomization(payload.customization);
+
+  if (useFallbackStorage || !sqliteDb) {
+    const state = getFallbackState();
+    const target = state.profiles.find((p) => p.id === profileId);
+    if (target) {
+      target.spentHoney = safeSpent;
+      target.ownedItems = safeOwned;
+      target.customization = safeCustom;
+      saveFallbackState(state);
+    }
+    return;
+  }
+
+  await sqliteDb.runAsync(
+    `UPDATE profiles SET spent_honey = ?, owned_items = ?, customization = ? WHERE id = ?`,
+    [safeSpent, JSON.stringify(safeOwned), JSON.stringify(safeCustom), profileId]
   );
 }

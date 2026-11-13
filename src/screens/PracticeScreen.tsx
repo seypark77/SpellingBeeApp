@@ -13,6 +13,7 @@ import { SpellingKeypad } from '../components/SpellingKeypad';
 import { VoiceSpellerModal } from '../components/VoiceSpellerModal';
 import { BADGES, checkSpellingAnswer, computeLetterDiff } from '../utils/spellingUtils';
 import {
+  playCorrectSound,
   speakLettersOutLoud,
   speakText,
   speakWord,
@@ -119,6 +120,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
 
     if (check.isCorrect) {
       triggerHaptic('success');
+      playCorrectSound();
       setConfettiTrigger((prev) => prev + 1);
       setSessionCorrect((prev) => prev + 1);
     } else {
@@ -376,7 +378,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
 
             <View style={styles.officialAnswerRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.officialWordLabel}>OFFICIAL SPELLING:</Text>
+                <Text style={styles.officialWordLabel}>CORRECT SPELLING:</Text>
                 <Text style={styles.officialWordText}>{currentWord.word}</Text>
                 {currentWord.altSpellings && currentWord.altSpellings.length > 0 && (
                   <Text style={styles.altSpellingNote}>
@@ -420,16 +422,20 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
               </View>
             )}
 
-            {/* Full Example Sentence & Merriam-Webster Link */}
+            {/* Full Example Sentence & Online Dictionary Search Link */}
             <View style={styles.postAnswerSentenceBox}>
               <Text style={styles.postAnswerSentenceLabel}>EXAMPLE SENTENCE:</Text>
               <Text style={styles.postAnswerSentenceText}>"{currentWord.exampleSentence}"</Text>
               <TouchableOpacity
                 style={styles.mwLinkBtn}
-                onPress={() => Linking.openURL(currentWord.mwUrl)}
+                onPress={() =>
+                  Linking.openURL(
+                    `https://www.google.com/search?q=define+${encodeURIComponent(currentWord.word)}`
+                  )
+                }
               >
                 <Text style={styles.mwLinkText}>
-                  🔗 View "{currentWord.word}" on Merriam-Webster.com ↗
+                  🔗 Look up "{currentWord.word}" in Dictionary ↗
                 </Text>
               </TouchableOpacity>
             </View>

@@ -6,48 +6,48 @@ export const BEE_RANKS: BeeRank[] = [
     title: 'Larva Learner',
     emoji: '🥚',
     minHoney: 0,
-    nextHoney: 100,
+    nextHoney: 500,
     description: 'Just hatched in the Spelling Hive! Keep buzzing!'
   },
   {
     level: 2,
     title: 'Worker Bee',
     emoji: '🐝',
-    minHoney: 100,
-    nextHoney: 300,
+    minHoney: 500,
+    nextHoney: 1500,
     description: 'Busy collecting words and building your hive!'
   },
   {
     level: 3,
     title: 'Nectar Scout',
     emoji: '🌸',
-    minHoney: 300,
-    nextHoney: 600,
+    minHoney: 1500,
+    nextHoney: 3500,
     description: 'Exploring new vocabulary across the meadow!'
   },
   {
     level: 4,
     title: 'Hive Guardian',
     emoji: '🛡️',
-    minHoney: 600,
-    nextHoney: 1200,
+    minHoney: 3500,
+    nextHoney: 7000,
     description: 'Strong speller defending the hive with precision!'
   },
   {
     level: 5,
     title: 'Royal Bee',
     emoji: '👑',
-    minHoney: 1200,
-    nextHoney: 2500,
+    minHoney: 7000,
+    nextHoney: 12000,
     description: 'A regional Spelling Bee contender of royal rank!'
   },
   {
     level: 6,
     title: 'Grand Champion Bee',
     emoji: '🏆',
-    minHoney: 2500,
+    minHoney: 12000,
     nextHoney: null,
-    description: 'Scripps National Spelling Bee Champion level!'
+    description: 'Ultimate Spelling Bee Grand Champion level!'
   }
 ];
 
@@ -80,19 +80,19 @@ export const BADGES: BadgeInfo[] = [
     id: 'one_bee_25',
     title: 'One Bee Star',
     emoji: '⭐',
-    description: 'Master 25 words from the One Bee (1st–3rd) list!'
+    description: 'Master 25 words from the One Bee (Beginner) list!'
   },
   {
     id: 'two_bee_25',
     title: 'Two Bee Explorer',
     emoji: '🌟',
-    description: 'Master 25 words from the Two Bee (4th–6th) list!'
+    description: 'Master 25 words from the Two Bee (Intermediate) list!'
   },
   {
     id: 'three_bee_25',
     title: 'Three Bee Scholar',
     emoji: '🎓',
-    description: 'Master 25 words from the Three Bee (7th–8th) list!'
+    description: 'Master 25 words from the Three Bee (Advanced) list!'
   },
   {
     id: 'comeback_kid',
@@ -104,7 +104,7 @@ export const BADGES: BadgeInfo[] = [
     id: 'century_club',
     title: '100 Words Club',
     emoji: '💯',
-    description: 'Spell 100 unique words from the 2026–2027 list correctly!'
+    description: 'Spell 100 unique words from the study list correctly!'
   },
   {
     id: 'honey_tycoon',

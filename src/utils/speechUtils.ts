@@ -1,26 +1,90 @@
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
-import wordsData from '../data/words.json';
 
-const LATEST_AUDIO_BY_WORD: Record<string, string> = {};
-for (const item of wordsData as any[]) {
-  if (item && item.word) {
-    LATEST_AUDIO_BY_WORD[String(item.word).toLowerCase()] = item.audioUrl || '';
-  }
-}
-
-let isAudioConfigured = false;
+const CORRECT_CHIME_ASSET = require('../../assets/sounds/correct.wav');
+let chimeAudioPlayer: any = null;
 let nativeAudioPlayer: any = null;
 let webAudioElement: any = null;
+
+/**
+ * Homograph phonetic overrides so that words with multiple pronunciations
+ * match the exact definition in the Spelling Bee word list.
+ */
+const TTS_PHONETIC_OVERRIDES_BY_ID: Record<number, string> = {
+  // #102 "lead" in the list is the metallic element (/led/), not the verb (/li:d/)
+  102: 'led'
+};
+
+export async function playCorrectSound(): Promise<void> {
+  // 1. Web Browser: play bright major arpeggio chime via Web Audio API
+  if (Platform.OS === 'web') {
+    try {
+      const AudioCtx =
+        typeof window !== 'undefined'
+          ? (window as any).AudioContext || (window as any).webkitAudioContext
+          : null;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const notes = [
+          { freq: 523.25, start: 0.0, dur: 0.35 },
+          { freq: 659.25, start: 0.08, dur: 0.35 },
+          { freq: 783.99, start: 0.16, dur: 0.35 },
+          { freq: 1046.5, start: 0.24, dur: 0.42 }
+        ];
+        const now = ctx.currentTime;
+        for (const n of notes) {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(n.freq, now + n.start);
+          gain.gain.setValueAtTime(0.001, now + n.start);
+          gain.gain.linearRampToValueAtTime(0.28, now + n.start + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + n.start + n.dur);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + n.start);
+          osc.stop(now + n.start + n.dur);
+        }
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    return;
+  }
+
+  // 2. Mobile (iOS / Android): play bundled celebratory chime WAV via expo-audio
+  try {
+    await configureAudioSession();
+    const ExpoAudio = require('expo-audio');
+    if (ExpoAudio && typeof ExpoAudio.createAudioPlayer === 'function') {
+      if (chimeAudioPlayer) {
+        try {
+          chimeAudioPlayer.pause?.();
+          chimeAudioPlayer.remove?.();
+        } catch {
+          // ignore
+        }
+        chimeAudioPlayer = null;
+      }
+
+      chimeAudioPlayer = ExpoAudio.createAudioPlayer(CORRECT_CHIME_ASSET, {
+        keepAudioSessionActive: true
+      });
+      chimeAudioPlayer.volume = 1.0;
+      chimeAudioPlayer.play();
+    }
+  } catch (err) {
+    console.warn('Correct chime playback warning:', err);
+  }
+}
 
 export async function configureAudioSession(): Promise<void> {
   if (Platform.OS === 'web') return;
   try {
     const ExpoAudio = require('expo-audio');
     if (ExpoAudio && typeof ExpoAudio.setAudioModeAsync === 'function') {
-      // IMPORTANT: interruptionMode: 'doNotMix' with allowsRecording: false makes sessionOptions empty in ExpoAudio,
-      // which forces AVAudioSession.setCategory(.playback, mode: .default) and clears AudioStream's quiet .measurement mode!
       await ExpoAudio.setAudioModeAsync({
         playsInSilentMode: true,
         interruptionMode: 'doNotMix',
@@ -32,7 +96,6 @@ export async function configureAudioSession(): Promise<void> {
     if (ExpoAudio && typeof ExpoAudio.setIsAudioActiveAsync === 'function') {
       await ExpoAudio.setIsAudioActiveAsync(true);
     }
-    isAudioConfigured = true;
   } catch (e) {
     console.warn('Audio session setup warning:', e);
   }
@@ -41,6 +104,14 @@ export async function configureAudioSession(): Promise<void> {
 export async function resetAudioAfterRecording(): Promise<void> {
   if (Platform.OS === 'web') return;
   try {
+    if (chimeAudioPlayer) {
+      try {
+        chimeAudioPlayer.remove?.();
+      } catch {
+        // ignore
+      }
+      chimeAudioPlayer = null;
+    }
     if (nativeAudioPlayer) {
       try {
         nativeAudioPlayer.remove?.();
@@ -57,65 +128,101 @@ export async function resetAudioAfterRecording(): Promise<void> {
   }
 }
 
+async function playRemoteMp3Url(url: string, slow: boolean): Promise<boolean> {
+  if (!url) return false;
+
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof Audio !== 'undefined') {
+    try {
+      await stopSpeaking();
+      const audio = new Audio();
+      (audio as any).referrerPolicy = 'no-referrer';
+      audio.src = url;
+      webAudioElement = audio;
+      audio.playbackRate = slow ? 0.65 : 1.0;
+      await audio.play();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  try {
+    await configureAudioSession();
+    await stopSpeaking();
+    const ExpoAudio = require('expo-audio');
+    if (ExpoAudio && typeof ExpoAudio.createAudioPlayer === 'function') {
+      if (nativeAudioPlayer) {
+        try {
+          nativeAudioPlayer.pause?.();
+          nativeAudioPlayer.remove?.();
+        } catch {
+          // ignore
+        }
+        nativeAudioPlayer = null;
+      }
+
+      nativeAudioPlayer = ExpoAudio.createAudioPlayer(
+        { uri: url },
+        { keepAudioSessionActive: true }
+      );
+      nativeAudioPlayer.volume = 1.0;
+      if (typeof nativeAudioPlayer.setPlaybackRate === 'function') {
+        try {
+          nativeAudioPlayer.setPlaybackRate(slow ? 0.65 : 1.0);
+        } catch {
+          // ignore
+        }
+      }
+      nativeAudioPlayer.play();
+      return true;
+    }
+  } catch (err) {
+    console.warn('Remote MP3 playback error:', err);
+  }
+  return false;
+}
+
 /**
- * Plays the real human dictionary MP3 pronunciation (Merriam-Webster / US Dictionary audio)
- * when available, and falls back to TTS if offline or if no MP3 exists for an entry.
+ * Speaks the target word using high-quality Neural AI US English MP3
+ * (with automatic fallback to secondary Neural stream and offline OS TTS).
  */
 export async function speakWord(
-  entry: { word: string; audioUrl?: string },
+  entry: { id?: number; word: string; definition?: string; audioUrl?: string },
   slow: boolean = false
 ): Promise<void> {
   if (!entry || !entry.word) return;
 
-  const latestUrl = LATEST_AUDIO_BY_WORD[entry.word.toLowerCase()];
-  const audioUrl = (latestUrl !== undefined ? latestUrl : entry.audioUrl || '').trim();
-  if (!audioUrl) {
-    await speakText(entry.word, slow);
+  let spokenWord = entry.word.trim();
+  if (entry.id && TTS_PHONETIC_OVERRIDES_BY_ID[entry.id]) {
+    spokenWord = TTS_PHONETIC_OVERRIDES_BY_ID[entry.id];
+  } else if (
+    spokenWord.toLowerCase() === 'lead' &&
+    entry.definition?.toLowerCase().includes('metallic')
+  ) {
+    spokenWord = 'led';
+  }
+
+  // 1. Primary: Google US English Neural TTS MP3
+  const speedParam = slow ? '0.24' : '1';
+  const googleNeuralUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=en-US&ttsspeed=${speedParam}&q=${encodeURIComponent(
+    spokenWord
+  )}&ext=.mp3`;
+  const playedGoogle = await playRemoteMp3Url(googleNeuralUrl, slow);
+  if (playedGoogle) {
     return;
   }
 
-  // 1. Web Browser HTML5 Audio playback
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof Audio !== 'undefined') {
-    try {
-      await stopSpeaking();
-      const audio = new Audio(audioUrl);
-      webAudioElement = audio;
-      audio.playbackRate = slow ? 0.65 : 1.0;
-      await audio.play();
-      return;
-    } catch {
-      await speakText(entry.word, slow);
-      return;
-    }
+  // 2. Secondary fallback: Youdao US English Neural stream
+  const youdaoNeuralUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(
+    spokenWord
+  )}&type=2&ext=.mp3`;
+  const playedYoudao = await playRemoteMp3Url(youdaoNeuralUrl, slow);
+  if (playedYoudao) {
+    return;
   }
 
-  // 2. Mobile (iOS / Android) Native AudioPlayer via expo-audio
-  try {
-    await configureAudioSession();
-    await stopSpeaking();
-
-    const ExpoAudio = require('expo-audio');
-    if (ExpoAudio && typeof ExpoAudio.createAudioPlayer === 'function') {
-      if (!nativeAudioPlayer) {
-        nativeAudioPlayer = ExpoAudio.createAudioPlayer(
-          { uri: audioUrl },
-          { keepAudioSessionActive: true }
-        );
-      } else {
-        nativeAudioPlayer.replace({ uri: audioUrl });
-      }
-      nativeAudioPlayer.volume = 1.0;
-      if (typeof nativeAudioPlayer.setPlaybackRate === 'function') {
-        nativeAudioPlayer.setPlaybackRate(slow ? 0.65 : 1.0);
-      }
-      nativeAudioPlayer.play();
-      return;
-    }
-  } catch (err) {
-    console.warn('Native MP3 audio playback fell back to TTS:', err);
-  }
-
-  await speakText(entry.word, slow);
+  // 3. Offline fallback: OS-native US English TTS
+  await speakText(spokenWord, slow);
 }
 
 export async function speakText(text: string, slow: boolean = false): Promise<void> {
@@ -178,11 +285,19 @@ export async function speakLettersOutLoud(text: string): Promise<void> {
 export async function stopSpeaking(): Promise<void> {
   try {
     if (webAudioElement) {
-      webAudioElement.pause();
+      try {
+        webAudioElement.pause();
+      } catch {
+        // ignore
+      }
       webAudioElement = null;
     }
     if (nativeAudioPlayer && typeof nativeAudioPlayer.pause === 'function') {
-      nativeAudioPlayer.pause();
+      try {
+        nativeAudioPlayer.pause();
+      } catch {
+        // ignore
+      }
     }
     if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();

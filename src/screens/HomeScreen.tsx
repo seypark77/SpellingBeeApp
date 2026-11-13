@@ -7,15 +7,22 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { CharacterAvatar } from '../components/CharacterAvatar';
+import { CharacterWardrobeModal } from '../components/CharacterWardrobeModal';
 import {
+  BadgeInfo,
   BeeLevel,
+  BeeRank,
+  CharacterCustomization,
   QuizCount,
   QuizOrder,
+  QuizPoolFilter,
   QuizSessionConfig,
   SpellerProfile,
   WordEntry,
   WordProgress
 } from '../types/spelling';
+import { getSpendableHoney } from '../utils/characterShopData';
 import { BADGES, BEE_RANKS, getBeeRank } from '../utils/spellingUtils';
 
 interface HomeScreenProps {
@@ -25,6 +32,11 @@ interface HomeScreenProps {
   onOpenProfileModal: () => void;
   onStartQuiz: (config: QuizSessionConfig) => void;
   onNavigateTab: (tab: 'home' | 'study' | 'review') => void;
+  onSaveCustomization: (payload: {
+    spentHoney: number;
+    ownedItems: string[];
+    customization: CharacterCustomization;
+  }) => Promise<void>;
 }
 
 const LEVEL_CARDS: {
@@ -32,35 +44,35 @@ const LEVEL_CARDS: {
   bees: string;
   title: string;
   grade: string;
-  rangeText: string;
   accentColor: string;
+  shadowColor: string;
   bgTint: string;
 }[] = [
   {
     level: 'One Bee',
     bees: '🐝',
     title: 'One Bee',
-    grade: '1st – 3rd Grade',
-    rangeText: 'Words #1 – #150',
+    grade: 'Beginner',
     accentColor: '#F59E0B',
+    shadowColor: '#B45309',
     bgTint: '#FFFBEB'
   },
   {
     level: 'Two Bee',
     bees: '🐝🐝',
     title: 'Two Bee',
-    grade: '4th – 6th Grade',
-    rangeText: 'Words #151 – #300',
+    grade: 'Intermediate',
     accentColor: '#0284C7',
+    shadowColor: '#0369A1',
     bgTint: '#F0F9FF'
   },
   {
     level: 'Three Bee',
     bees: '🐝🐝🐝',
     title: 'Three Bee',
-    grade: '7th – 8th Grade',
-    rangeText: 'Words #301 – #450',
+    grade: 'Advanced',
     accentColor: '#7C3AED',
+    shadowColor: '#5B21B6',
     bgTint: '#F5F3FF'
   }
 ];
@@ -69,15 +81,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   profile,
   allWords,
   progressMap,
-  onOpenProfileModal,
   onStartQuiz,
-  onNavigateTab
+  onSaveCustomization
 }) => {
   const [setupLevel, setSetupLevel] = useState<BeeLevel | 'All' | null>(null);
   const [selectedCount, setSelectedCount] = useState<QuizCount>(10);
   const [selectedOrder, setSelectedOrder] = useState<QuizOrder>('random');
   const [selectedOffset, setSelectedOffset] = useState<number>(0);
+  const [selectedPoolFilter, setSelectedPoolFilter] = useState<QuizPoolFilter>('unmastered_only');
 
+  // Detail popup state for Evolution Rank and Badge
+  const [selectedRankDetail, setSelectedRankDetail] = useState<BeeRank | null>(null);
+  const [selectedBadgeDetail, setSelectedBadgeDetail] = useState<BadgeInfo | null>(null);
+  const [wardrobeOpen, setWardrobeOpen] = useState(false);
+
+  const spendableHoney = getSpendableHoney(profile);
   const rank = getBeeRank(profile.honeyPoints);
   const progressPercent = rank.nextHoney
     ? Math.min(
@@ -88,7 +106,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       )
     : 100;
 
-  // Compute level stats
   const getLevelStats = (lvl: BeeLevel | 'All') => {
     const words = lvl === 'All' ? allWords : allWords.filter((w) => w.level === lvl);
     let mastered = 0;
@@ -111,6 +128,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     setSelectedCount(10);
     setSelectedOrder('random');
     setSelectedOffset(0);
+    setSelectedPoolFilter('unmastered_only');
   };
 
   const handleConfirmSetup = () => {
@@ -120,62 +138,68 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       level: setupLevel,
       count: selectedCount,
       order: selectedOrder,
+      poolFilter: selectedPoolFilter,
       startOffset: selectedOrder === 'sequential' ? selectedOffset : 0
     };
     setSetupLevel(null);
     onStartQuiz(cfg);
   };
 
+  const allStats = getLevelStats('All');
+  const allPct = Math.round((allStats.mastered / Math.max(1, allStats.total)) * 100);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Top Official-Style Banner */}
+      {/* Duolingo-Style Character Showcase & Rank Progress Card */}
       <View style={styles.heroCard}>
-        <View style={styles.topRow}>
-          <TouchableOpacity style={styles.profilePill} onPress={onOpenProfileModal}>
-            <View style={styles.avatarBadge}>
-              <Text style={styles.avatarEmoji}>{profile.avatar}</Text>
-            </View>
-            <View>
-              <Text style={styles.profileName}>{profile.name} ▾</Text>
-              <Text style={styles.profileSub}>{profile.grade}</Text>
-            </View>
+        <View style={styles.characterHeroRow}>
+          <TouchableOpacity
+            style={styles.characterStageTouchable}
+            onPress={() => setWardrobeOpen(true)}
+            activeOpacity={0.88}
+          >
+            <CharacterAvatar
+              customization={profile.customization}
+              size={96}
+              showBackdrop={true}
+            />
           </TouchableOpacity>
 
-          <View style={styles.statsPillRow}>
-            <View style={styles.statChip}>
-              <Text style={styles.statChipText}>🍯 {profile.honeyPoints}</Text>
-            </View>
-            <View style={styles.statChip}>
-              <Text style={styles.statChipText}>🔥 {profile.currentStreak}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Bee Character Growth Card */}
-        <View style={styles.rankBox}>
-          <View style={styles.rankIconBox}>
-            <Text style={styles.rankBigEmoji}>{rank.emoji}</Text>
-          </View>
-          <View style={styles.rankInfo}>
+          <View style={styles.characterMetaCol}>
             <View style={styles.rankHeaderRow}>
-              <Text style={styles.rankTitle}>
-                Rank {rank.level}: {rank.title}
+              <Text style={styles.rankTitle} numberOfLines={1}>
+                {rank.emoji} {rank.title}
               </Text>
-              <Text style={styles.rankPtsText}>
-                {rank.nextHoney
-                  ? `${profile.honeyPoints} / ${rank.nextHoney} 🍯`
-                  : 'MAX RANK 🏆'}
-              </Text>
+              <View style={styles.rankPtsBadge}>
+                <Text style={styles.rankPtsText}>
+                  {rank.nextHoney ? `🍯 ${profile.honeyPoints}/${rank.nextHoney}` : '🏆 MAX'}
+                </Text>
+              </View>
             </View>
-            <Text style={styles.rankDesc}>{rank.description}</Text>
+
             <View style={styles.progressBarBg}>
               <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
             </View>
+
+            <View style={styles.characterShopActionRow}>
+              <View style={styles.spendableHoneyPill}>
+                <Text style={styles.spendableHoneyLabel}>Shop Honey</Text>
+                <Text style={styles.spendableHoneyValue}>🍯 {spendableHoney}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.dressUpShopBtn}
+              onPress={() => setWardrobeOpen(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.dressUpShopBtnText}>✨ Dress Up & Shop</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
 
-      {/* Active Wrong Words Alert Banner */}
+      {/* Active Wrong Words Quick Play Card */}
       {activeWrongWordsCount > 0 && (
         <TouchableOpacity
           style={styles.reviewBanner}
@@ -190,30 +214,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         >
           <View style={styles.reviewBannerLeft}>
             <Text style={styles.reviewBannerEmoji}>🎯</Text>
-            <View style={{ flex: 1 }}>
+            <View>
               <Text style={styles.reviewBannerTitle}>
-                {activeWrongWordsCount} Tricky {activeWrongWordsCount === 1 ? 'Word' : 'Words'} to
-                Review!
+                {activeWrongWordsCount} Tricky {activeWrongWordsCount === 1 ? 'Word' : 'Words'}
               </Text>
-              <Text style={styles.reviewBannerSub}>
-                Spell missed words right twice to master them & earn bonus 🍯!
-              </Text>
+              <Text style={styles.reviewBannerSub}>Practice & Master Your Mistakes</Text>
             </View>
           </View>
-          <View style={styles.reviewBannerBtn}>
-            <Text style={styles.reviewBannerBtnText}>Practice ▸</Text>
+          <View style={styles.reviewPlayCircle}>
+            <Text style={styles.reviewPlayIcon}>▶</Text>
           </View>
         </TouchableOpacity>
       )}
 
-      {/* Section: 2026-2027 Official Study List Divisions */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>🐝 2026–2027 Study List Divisions</Text>
-        <Text style={styles.sectionSubtitle}>
-          Choose a level to practice spelling by ear or voice, just like the real Bee!
-        </Text>
-      </View>
-
+      {/* Chunky Duolingo-Style Level Cards */}
       {LEVEL_CARDS.map((card) => {
         const stats = getLevelStats(card.level);
         const pct = Math.round((stats.mastered / stats.total) * 100);
@@ -222,39 +236,40 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             key={card.level}
             style={[
               styles.levelCard,
-              { backgroundColor: card.bgTint, borderColor: card.accentColor }
+              {
+                backgroundColor: card.bgTint,
+                borderColor: card.accentColor,
+                borderBottomColor: card.shadowColor
+              }
             ]}
             onPress={() => openLevelSetup(card.level)}
             activeOpacity={0.85}
           >
             <View style={styles.levelCardTop}>
-              <View>
-                <View style={styles.levelBadgeRow}>
-                  <Text style={styles.levelBees}>{card.bees}</Text>
+              <View style={styles.levelLeft}>
+                <Text style={styles.levelBees}>{card.bees}</Text>
+                <View>
+                  <Text style={styles.levelTitle}>{card.title}</Text>
                   <View style={[styles.gradePill, { backgroundColor: card.accentColor }]}>
                     <Text style={styles.gradePillText}>{card.grade}</Text>
                   </View>
                 </View>
-                <Text style={styles.levelTitle}>{card.title}</Text>
-                <Text style={styles.levelRange}>{card.rangeText}</Text>
               </View>
 
-              <View style={[styles.startBadge, { backgroundColor: card.accentColor }]}>
-                <Text style={styles.startBadgeText}>PRACTICE ▸</Text>
+              <View
+                style={[
+                  styles.playCircleBtn,
+                  {
+                    backgroundColor: card.accentColor,
+                    borderBottomColor: card.shadowColor
+                  }
+                ]}
+              >
+                <Text style={styles.playCircleIcon}>▶</Text>
               </View>
             </View>
 
             <View style={styles.levelProgressSection}>
-              <View style={styles.levelProgressLabels}>
-                <Text style={styles.levelProgressText}>
-                  ✅ {stats.mastered} / {stats.total} Mastered ({pct}%)
-                </Text>
-                {stats.needsReview > 0 && (
-                  <Text style={styles.levelNeedsReviewText}>
-                    ⚠️ {stats.needsReview} in Review
-                  </Text>
-                )}
-              </View>
               <View style={styles.levelBarBg}>
                 <View
                   style={[
@@ -263,56 +278,45 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   ]}
                 />
               </View>
+              <View style={styles.levelProgressLabels}>
+                <Text style={styles.levelProgressText}>
+                  ✅ {stats.mastered}/{stats.total}
+                </Text>
+                {stats.needsReview > 0 && (
+                  <Text style={styles.levelNeedsReviewText}>🎯 {stats.needsReview}</Text>
+                )}
+              </View>
             </View>
           </TouchableOpacity>
         );
       })}
 
-      {/* All 450 Words Championship Card */}
+      {/* All 450 Words Card */}
       <TouchableOpacity
         style={styles.allWordsCard}
         onPress={() => openLevelSetup('All')}
         activeOpacity={0.85}
       >
-        <View style={{ flex: 1 }}>
-          <Text style={styles.allWordsTag}>🏆 NATIONAL CHAMPIONSHIP MIX</Text>
-          <Text style={styles.allWordsTitle}>All 450 Words (Full List)</Text>
-          <Text style={styles.allWordsSub}>
-            Test yourself across One Bee, Two Bee, and Three Bee combined!
-          </Text>
+        <View style={styles.levelCardTop}>
+          <View style={styles.levelLeft}>
+            <Text style={styles.allWordsTrophy}>🏆</Text>
+            <View>
+              <Text style={styles.allWordsTitle}>All 450</Text>
+              <Text style={styles.allWordsCount}>✅ {allStats.mastered}/450</Text>
+            </View>
+          </View>
+          <View style={styles.allWordsPlayBtn}>
+            <Text style={styles.allWordsPlayIcon}>▶</Text>
+          </View>
         </View>
-        <View style={styles.allWordsAction}>
-          <Text style={styles.allWordsActionText}>START ▸</Text>
+        <View style={styles.allWordsBarBg}>
+          <View style={[styles.allWordsBarFill, { width: `${allPct}%` }]} />
         </View>
       </TouchableOpacity>
 
-      {/* Quick Study & Review Shortcuts */}
-      <View style={styles.shortcutRow}>
-        <TouchableOpacity
-          style={styles.shortcutCard}
-          onPress={() => onNavigateTab('study')}
-        >
-          <Text style={styles.shortcutEmoji}>📖</Text>
-          <Text style={styles.shortcutTitle}>Study List (450)</Text>
-          <Text style={styles.shortcutSub}>Definitions, audio & examples</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.shortcutCard}
-          onPress={() => onNavigateTab('review')}
-        >
-          <Text style={styles.shortcutEmoji}>🎯</Text>
-          <Text style={styles.shortcutTitle}>Wrong Word Bank</Text>
-          <Text style={styles.shortcutSub}>Review & master tricky words</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Bee Evolution Ladder Preview */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>👑 Bee Evolution Path</Text>
-        <Text style={styles.sectionSubtitle}>
-          Earn Honey Points (🍯) every time you practice and watch your Bee evolve!
-        </Text>
+      {/* Bee Evolution Path (Pure Icon Strip) */}
+      <View style={styles.iconSectionHeader}>
+        <Text style={styles.iconSectionEmoji}>👑</Text>
       </View>
 
       <ScrollView
@@ -324,29 +328,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           const unlocked = profile.honeyPoints >= r.minHoney;
           const isCurrent = r.level === rank.level;
           return (
-            <View
+            <TouchableOpacity
               key={r.level}
               style={[
                 styles.rankStepCard,
                 unlocked && styles.rankStepUnlocked,
                 isCurrent && styles.rankStepCurrent
               ]}
+              onPress={() => setSelectedRankDetail(r)}
+              activeOpacity={0.8}
             >
               <Text style={styles.rankStepEmoji}>{r.emoji}</Text>
-              <Text style={styles.rankStepTitle}>{r.title}</Text>
-              <Text style={styles.rankStepPts}>{r.minHoney} 🍯</Text>
-            </View>
+              <Text style={styles.rankStepPts}>🍯 {r.minHoney}</Text>
+            </TouchableOpacity>
           );
         })}
       </ScrollView>
 
-      {/* Trophy & Badge Cabinet */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>
-          🏅 Trophy Cabinet ({profile.unlockedBadges.length}/{BADGES.length})
-        </Text>
-        <Text style={styles.sectionSubtitle}>
-          Collect special badges for streaks, voice spelling, and mastering levels!
+      {/* Trophy & Badge Grid (Icon-First) */}
+      <View style={styles.iconSectionHeader}>
+        <Text style={styles.iconSectionEmoji}>🏅</Text>
+        <Text style={styles.iconSectionCount}>
+          {profile.unlockedBadges.length}/{BADGES.length}
         </Text>
       </View>
 
@@ -354,36 +357,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {BADGES.map((b) => {
           const isUnlocked = profile.unlockedBadges.includes(b.id);
           return (
-            <View
+            <TouchableOpacity
               key={b.id}
               style={[styles.badgeCard, isUnlocked && styles.badgeCardUnlocked]}
+              onPress={() => setSelectedBadgeDetail(b)}
+              activeOpacity={0.8}
             >
               <Text style={[styles.badgeEmoji, !isUnlocked && styles.badgeEmojiLocked]}>
                 {b.emoji}
               </Text>
-              <Text style={styles.badgeTitle}>{b.title}</Text>
-              <Text style={styles.badgeDesc}>{b.description}</Text>
-              <View
-                style={[
-                  styles.badgeStatusPill,
-                  isUnlocked ? styles.badgePillUnlocked : styles.badgePillLocked
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.badgeStatusText,
-                    isUnlocked ? styles.badgeStatusTextUnlocked : styles.badgeStatusTextLocked
-                  ]}
-                >
-                  {isUnlocked ? 'UNLOCKED ✓' : 'LOCKED 🔒'}
-                </Text>
-              </View>
-            </View>
+              <Text style={styles.badgeTitle} numberOfLines={1}>
+                {b.title}
+              </Text>
+              <Text style={styles.badgeLockIcon}>{isUnlocked ? '✅' : '🔒'}</Text>
+            </TouchableOpacity>
           );
         })}
       </View>
 
-      {/* Practice Session Setup Modal */}
+      {/* Duolingo-Style Session Setup Modal */}
       <Modal
         visible={setupLevel !== null}
         animationType="fade"
@@ -394,7 +386,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                🐝 {setupLevel === 'All' ? 'All 450 Words' : setupLevel} Practice
+                {setupLevel === 'One Bee'
+                  ? '🐝 One Bee'
+                  : setupLevel === 'Two Bee'
+                  ? '🐝🐝 Two Bee'
+                  : setupLevel === 'Three Bee'
+                  ? '🐝🐝🐝 Three Bee'
+                  : '🏆 All 450'}
               </Text>
               <TouchableOpacity
                 onPress={() => setSetupLevel(null)}
@@ -404,99 +402,227 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalLabel}>1. HOW MANY WORDS IN THIS SESSION?</Text>
+            {/* Pool Filter Toggle (Unmastered vs All) */}
+            <View style={styles.optionRow}>
+              <TouchableOpacity
+                style={[
+                  styles.filterTile,
+                  selectedPoolFilter === 'unmastered_only' && styles.optionBtnActive
+                ]}
+                onPress={() => setSelectedPoolFilter('unmastered_only')}
+              >
+                <Text
+                  style={[
+                    styles.filterTileText,
+                    selectedPoolFilter === 'unmastered_only' && styles.optionBtnTextActive
+                  ]}
+                >
+                  🌱 New & Tricky Only
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.filterTile,
+                  selectedPoolFilter === 'all' && styles.optionBtnActive
+                ]}
+                onPress={() => setSelectedPoolFilter('all')}
+              >
+                <Text
+                  style={[
+                    styles.filterTileText,
+                    selectedPoolFilter === 'all' && styles.optionBtnTextActive
+                  ]}
+                >
+                  🔄 All Words
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Count Selection (Big Number Tiles) */}
             <View style={styles.optionRow}>
               {([10, 20, 50, 150] as QuizCount[]).map((cnt) => (
                 <TouchableOpacity
                   key={cnt}
                   style={[
-                    styles.optionBtn,
+                    styles.countTile,
                     selectedCount === cnt && styles.optionBtnActive
                   ]}
                   onPress={() => setSelectedCount(cnt)}
                 >
                   <Text
                     style={[
-                      styles.optionBtnText,
+                      styles.countTileNumber,
                       selectedCount === cnt && styles.optionBtnTextActive
                     ]}
                   >
-                    {cnt === 150 ? 'All (150)' : `${cnt} Words`}
+                    {cnt}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={styles.modalLabel}>2. WORD ORDER</Text>
+            {/* Order Selection (Big Icon Toggle) */}
             <View style={styles.optionRow}>
               <TouchableOpacity
                 style={[
-                  styles.optionBtn,
+                  styles.orderTile,
                   selectedOrder === 'random' && styles.optionBtnActive
                 ]}
                 onPress={() => setSelectedOrder('random')}
               >
-                <Text
-                  style={[
-                    styles.optionBtnText,
-                    selectedOrder === 'random' && styles.optionBtnTextActive
-                  ]}
-                >
-                  🔀 Random Shuffle
-                </Text>
+                <Text style={styles.orderTileEmoji}>🔀</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
-                  styles.optionBtn,
+                  styles.orderTile,
                   selectedOrder === 'sequential' && styles.optionBtnActive
                 ]}
                 onPress={() => setSelectedOrder('sequential')}
               >
-                <Text
-                  style={[
-                    styles.optionBtnText,
-                    selectedOrder === 'sequential' && styles.optionBtnTextActive
-                  ]}
-                >
-                  🔢 Sequential Order
-                </Text>
+                <Text style={styles.orderTileEmoji}>🔢</Text>
               </TouchableOpacity>
             </View>
 
             {selectedOrder === 'sequential' && setupLevel !== 'All' && (
-              <>
-                <Text style={styles.modalLabel}>3. STARTING WORD RANGE</Text>
-                <View style={styles.optionRow}>
-                  {[
-                    { label: '1st 50 (#1–50)', offset: 0 },
-                    { label: '2nd 50 (#51–100)', offset: 50 },
-                    { label: '3rd 50 (#101–150)', offset: 100 }
-                  ].map((item) => (
-                    <TouchableOpacity
-                      key={item.offset}
+              <View style={styles.optionRow}>
+                {[
+                  { label: '1–50', offset: 0 },
+                  { label: '51–100', offset: 50 },
+                  { label: '101–150', offset: 100 }
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.offset}
+                    style={[
+                      styles.rangeTile,
+                      selectedOffset === item.offset && styles.optionBtnActive
+                    ]}
+                    onPress={() => setSelectedOffset(item.offset)}
+                  >
+                    <Text
                       style={[
-                        styles.optionBtn,
-                        selectedOffset === item.offset && styles.optionBtnActive
+                        styles.rangeTileText,
+                        selectedOffset === item.offset && styles.optionBtnTextActive
                       ]}
-                      onPress={() => setSelectedOffset(item.offset)}
                     >
-                      <Text
-                        style={[
-                          styles.optionBtnText,
-                          selectedOffset === item.offset && styles.optionBtnTextActive
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             )}
 
             <TouchableOpacity style={styles.launchQuizBtn} onPress={handleConfirmSetup}>
-              <Text style={styles.launchQuizBtnText}>Start</Text>
+              <Text style={styles.launchQuizBtnText}>▶ Start</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Character Wardrobe & Shop Modal */}
+      <CharacterWardrobeModal
+        visible={wardrobeOpen}
+        profile={profile}
+        onClose={() => setWardrobeOpen(false)}
+        onSaveCustomization={onSaveCustomization}
+      />
+
+      {/* Rank Detail Popup Modal */}
+      <Modal
+        visible={selectedRankDetail !== null}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setSelectedRankDetail(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.detailPopupCard}>
+            <View style={styles.detailPopupHeader}>
+              <Text style={styles.detailPopupEmoji}>{selectedRankDetail?.emoji}</Text>
+              <TouchableOpacity
+                onPress={() => setSelectedRankDetail(null)}
+                style={styles.closeBtn}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.detailPopupTitle}>
+              Rank {selectedRankDetail?.level}: {selectedRankDetail?.title}
+            </Text>
+
+            <View style={styles.detailPointsPill}>
+              <Text style={styles.detailPointsText}>
+                🍯 Requires {selectedRankDetail?.minHoney} Honey Points
+              </Text>
+            </View>
+
+            <Text style={styles.detailPopupDesc}>{selectedRankDetail?.description}</Text>
+
+            <View style={styles.detailStatusRow}>
+              {profile.honeyPoints >= (selectedRankDetail?.minHoney || 0) ? (
+                <View style={[styles.detailStatusBadge, styles.statusBadgeUnlocked]}>
+                  <Text style={styles.statusBadgeTextUnlocked}>✅ UNLOCKED</Text>
+                </View>
+              ) : (
+                <View style={[styles.detailStatusBadge, styles.statusBadgeLocked]}>
+                  <Text style={styles.statusBadgeTextLocked}>
+                    🔒 Need {(selectedRankDetail?.minHoney || 0) - profile.honeyPoints} more 🍯
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.detailDoneBtn}
+              onPress={() => setSelectedRankDetail(null)}
+            >
+              <Text style={styles.detailDoneBtnText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Badge Detail Popup Modal */}
+      <Modal
+        visible={selectedBadgeDetail !== null}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setSelectedBadgeDetail(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.detailPopupCard}>
+            <View style={styles.detailPopupHeader}>
+              <Text style={styles.detailPopupEmoji}>{selectedBadgeDetail?.emoji}</Text>
+              <TouchableOpacity
+                onPress={() => setSelectedBadgeDetail(null)}
+                style={styles.closeBtn}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.detailPopupTitle}>{selectedBadgeDetail?.title}</Text>
+
+            <Text style={styles.detailPopupDesc}>{selectedBadgeDetail?.description}</Text>
+
+            <View style={styles.detailStatusRow}>
+              {selectedBadgeDetail && profile.unlockedBadges.includes(selectedBadgeDetail.id) ? (
+                <View style={[styles.detailStatusBadge, styles.statusBadgeUnlocked]}>
+                  <Text style={styles.statusBadgeTextUnlocked}>✅ UNLOCKED</Text>
+                </View>
+              ) : (
+                <View style={[styles.detailStatusBadge, styles.statusBadgeLocked]}>
+                  <Text style={styles.statusBadgeTextLocked}>🔒 LOCKED</Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.detailDoneBtn}
+              onPress={() => setSelectedBadgeDetail(null)}
+            >
+              <Text style={styles.detailDoneBtnText}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -520,88 +646,29 @@ const styles = StyleSheet.create({
   heroCard: {
     backgroundColor: '#0F172A',
     borderRadius: 24,
-    padding: 18,
+    padding: 16,
     marginBottom: 16,
     borderWidth: 2,
+    borderBottomWidth: 5,
     borderColor: '#FFC72C'
-  },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-    flexWrap: 'wrap',
-    gap: 8
-  },
-  profilePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1E293B',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#334155'
-  },
-  avatarBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFC72C',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10
-  },
-  avatarEmoji: {
-    fontSize: 20
-  },
-  profileName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF'
-  },
-  profileSub: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '600'
-  },
-  statsPillRow: {
-    flexDirection: 'row',
-    gap: 8
-  },
-  statChip: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#F59E0B'
-  },
-  statChipText: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#92400E'
   },
   rankBox: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 12
+    alignItems: 'center'
   },
   rankIconBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 60,
+    height: 60,
+    borderRadius: 20,
     backgroundColor: '#FFFBEB',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
     borderWidth: 2,
     borderColor: '#FFC72C'
   },
   rankBigEmoji: {
-    fontSize: 28
+    fontSize: 34
   },
   rankInfo: {
     flex: 1
@@ -610,33 +677,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 2
+    marginBottom: 6,
+    flexWrap: 'wrap',
+    gap: 4
   },
   rankTitle: {
-    fontSize: 15,
+    fontSize: 16.5,
     fontWeight: '900',
-    color: '#FFC72C'
+    color: '#FFC72C',
+    flexShrink: 1
   },
   rankPtsText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 12.5,
+    fontWeight: '900',
     color: '#FDE68A'
   },
-  rankDesc: {
-    fontSize: 12,
-    color: '#CBD5E1',
-    marginBottom: 8
+  rankPtsBadge: {
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    flexShrink: 0
   },
   progressBarBg: {
-    height: 8,
+    height: 12,
     backgroundColor: '#334155',
-    borderRadius: 4,
+    borderRadius: 999,
     overflow: 'hidden'
   },
   progressBarFill: {
     height: '100%',
     backgroundColor: '#FFC72C',
-    borderRadius: 4
+    borderRadius: 999
   },
   reviewBanner: {
     flexDirection: 'row',
@@ -644,218 +718,211 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#FEF2F2',
     borderWidth: 2,
+    borderBottomWidth: 5,
     borderColor: '#EF4444',
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 18
+    borderBottomColor: '#B91C1C',
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    marginBottom: 16
   },
   reviewBannerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    marginRight: 10
+    gap: 14,
+    flex: 1
   },
   reviewBannerEmoji: {
-    fontSize: 28,
-    marginRight: 10
+    fontSize: 36
   },
   reviewBannerTitle: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '900',
     color: '#991B1B'
   },
   reviewBannerSub: {
     fontSize: 12,
-    color: '#B91C1C',
+    fontWeight: '700',
+    color: '#DC2626',
     marginTop: 2
   },
-  reviewBannerBtn: {
+  reviewPlayCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
     backgroundColor: '#EF4444',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 4,
+    borderBottomColor: '#991B1B'
   },
-  reviewBannerBtnText: {
+  reviewPlayIcon: {
     color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 12
-  },
-  sectionHeader: {
-    marginBottom: 12,
-    marginTop: 4
-  },
-  sectionTitle: {
-    fontSize: 19,
-    fontWeight: '900',
-    color: '#0F172A'
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#475569',
-    marginTop: 2
+    fontSize: 22,
+    fontWeight: '900'
   },
   levelCard: {
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 2
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 14,
+    borderWidth: 2.5,
+    borderBottomWidth: 6
   },
   levelCardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12
+    marginBottom: 14
   },
-  levelBadgeRow: {
+  levelLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4
+    gap: 14
   },
   levelBees: {
-    fontSize: 18
+    fontSize: 32
+  },
+  levelTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 4
   },
   gradePill: {
-    paddingHorizontal: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
     paddingVertical: 3,
-    borderRadius: 8
+    borderRadius: 999
   },
   gradePillText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800'
+    fontSize: 12,
+    fontWeight: '900'
   },
-  levelTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#0F172A'
+  playCircleBtn: {
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 4
   },
-  levelRange: {
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '600'
-  },
-  startBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12
-  },
-  startBadgeText: {
+  playCircleIcon: {
     color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 13,
-    letterSpacing: 0.4
+    fontSize: 24,
+    fontWeight: '900'
   },
   levelProgressSection: {
-    marginTop: 2
-  },
-  levelProgressLabels: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6
-  },
-  levelProgressText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#334155'
-  },
-  levelNeedsReviewText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#DC2626'
+    alignItems: 'center',
+    gap: 12
   },
   levelBarBg: {
-    height: 8,
-    backgroundColor: 'rgba(15, 23, 42, 0.1)',
-    borderRadius: 4,
+    flex: 1,
+    height: 14,
+    backgroundColor: 'rgba(15, 23, 42, 0.12)',
+    borderRadius: 999,
     overflow: 'hidden'
   },
   levelBarFill: {
     height: '100%',
-    borderRadius: 4
+    borderRadius: 999
   },
-  allWordsCard: {
+  levelProgressLabels: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: '#FFC72C'
+    gap: 8
   },
-  allWordsTag: {
-    fontSize: 11,
+  levelProgressText: {
+    fontSize: 14,
     fontWeight: '900',
-    color: '#FFC72C',
-    letterSpacing: 0.5,
-    marginBottom: 2
+    color: '#334155'
+  },
+  levelNeedsReviewText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#DC2626'
+  },
+  allWordsCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 20,
+    borderWidth: 2.5,
+    borderBottomWidth: 6,
+    borderColor: '#FFC72C',
+    borderBottomColor: '#D97706'
+  },
+  allWordsTrophy: {
+    fontSize: 38
   },
   allWordsTitle: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '900',
     color: '#FFFFFF'
   },
-  allWordsSub: {
-    fontSize: 12,
-    color: '#CBD5E1',
+  allWordsCount: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FDE68A',
     marginTop: 2
   },
-  allWordsAction: {
+  allWordsPlayBtn: {
+    width: 58,
+    height: 58,
+    borderRadius: 20,
     backgroundColor: '#FFC72C',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginLeft: 10
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 4,
+    borderBottomColor: '#D97706'
   },
-  allWordsActionText: {
-    fontSize: 13,
+  allWordsPlayIcon: {
+    fontSize: 24,
     fontWeight: '900',
     color: '#0F172A'
   },
-  shortcutRow: {
+  allWordsBarBg: {
+    height: 12,
+    backgroundColor: '#334155',
+    borderRadius: 999,
+    overflow: 'hidden'
+  },
+  allWordsBarFill: {
+    height: '100%',
+    backgroundColor: '#FFC72C',
+    borderRadius: 999
+  },
+  iconSectionHeader: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    marginTop: 4
   },
-  shortcutCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    alignItems: 'center'
+  iconSectionEmoji: {
+    fontSize: 28
   },
-  shortcutEmoji: {
-    fontSize: 28,
-    marginBottom: 6
-  },
-  shortcutTitle: {
-    fontSize: 15,
+  iconSectionCount: {
+    fontSize: 18,
     fontWeight: '900',
-    color: '#0F172A',
-    textAlign: 'center'
-  },
-  shortcutSub: {
-    fontSize: 11,
-    color: '#64748B',
-    textAlign: 'center',
-    marginTop: 2
+    color: '#0F172A'
   },
   ranksScroll: {
     gap: 10,
-    paddingBottom: 16
+    paddingBottom: 18
   },
   rankStepCard: {
-    width: 115,
+    width: 92,
     backgroundColor: '#F1F5F9',
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     alignItems: 'center',
-    borderWidth: 1.5,
+    borderWidth: 2,
+    borderBottomWidth: 4,
     borderColor: '#CBD5E1',
-    opacity: 0.6
+    opacity: 0.55
   },
   rankStepUnlocked: {
     backgroundColor: '#FFFBEB',
@@ -864,24 +931,18 @@ const styles = StyleSheet.create({
   },
   rankStepCurrent: {
     borderWidth: 2.5,
+    borderBottomWidth: 5,
     borderColor: '#D97706',
     backgroundColor: '#FEF3C7'
   },
   rankStepEmoji: {
-    fontSize: 28,
-    marginBottom: 4
-  },
-  rankStepTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
-    textAlign: 'center'
+    fontSize: 34,
+    marginBottom: 6
   },
   rankStepPts: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#B45309',
-    marginTop: 2
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#92400E'
   },
   badgeGrid: {
     flexDirection: 'row',
@@ -889,150 +950,324 @@ const styles = StyleSheet.create({
     gap: 10
   },
   badgeCard: {
-    width: '48%',
+    width: '30%',
     flexGrow: 1,
     backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1.5,
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderWidth: 2,
+    borderBottomWidth: 4,
     borderColor: '#E2E8F0',
     alignItems: 'center'
   },
   badgeCardUnlocked: {
     backgroundColor: '#FFFBEB',
-    borderColor: '#F59E0B'
+    borderColor: '#F59E0B',
+    borderBottomColor: '#D97706'
   },
   badgeEmoji: {
-    fontSize: 30,
+    fontSize: 34,
     marginBottom: 6
   },
   badgeEmojiLocked: {
-    opacity: 0.35
+    opacity: 0.3
   },
   badgeTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '900',
     color: '#0F172A',
-    textAlign: 'center'
-  },
-  badgeDesc: {
-    fontSize: 11,
-    color: '#475569',
     textAlign: 'center',
-    marginTop: 3,
-    marginBottom: 8,
-    lineHeight: 15
+    marginBottom: 4
   },
-  badgeStatusPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6
-  },
-  badgePillUnlocked: {
-    backgroundColor: '#FEF3C7'
-  },
-  badgePillLocked: {
-    backgroundColor: '#E2E8F0'
-  },
-  badgeStatusText: {
-    fontSize: 10,
-    fontWeight: '900'
-  },
-  badgeStatusTextUnlocked: {
-    color: '#B45309'
-  },
-  badgeStatusTextLocked: {
-    color: '#64748B'
+  badgeLockIcon: {
+    fontSize: 14
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16
   },
   modalCard: {
     width: '100%',
-    maxWidth: 440,
+    maxWidth: 420,
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 28,
+    padding: 22,
     borderWidth: 3,
-    borderColor: '#FFC72C'
+    borderBottomWidth: 6,
+    borderColor: '#FFC72C',
+    borderBottomColor: '#D97706'
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14
+    marginBottom: 18
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '900',
     color: '#0F172A'
   },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center'
   },
   closeBtnText: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
     color: '#475569'
-  },
-  modalLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
-    marginBottom: 8,
-    letterSpacing: 0.5
   },
   optionRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
     marginBottom: 16
   },
-  optionBtn: {
+  filterTile: {
     flex: 1,
-    minWidth: '45%',
-    paddingVertical: 11,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 16,
     backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
+    borderWidth: 2,
+    borderBottomWidth: 4,
     borderColor: '#CBD5E1',
-    alignItems: 'center'
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  filterTileText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#334155'
+  },
+  countTile: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderBottomWidth: 4,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  countTileNumber: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#334155'
+  },
+  orderTile: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderBottomWidth: 4,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  orderTileEmoji: {
+    fontSize: 30
+  },
+  rangeTile: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderBottomWidth: 4,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  rangeTileText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#334155'
   },
   optionBtnActive: {
     backgroundColor: '#FEF3C7',
     borderColor: '#F59E0B',
-    borderWidth: 2
-  },
-  optionBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#334155'
+    borderBottomColor: '#D97706'
   },
   optionBtnTextActive: {
     color: '#92400E'
   },
   launchQuizBtn: {
-    backgroundColor: '#FFC72C',
-    paddingVertical: 15,
-    borderRadius: 14,
+    backgroundColor: '#58CC02',
+    paddingVertical: 16,
+    borderRadius: 20,
     alignItems: 'center',
-    borderBottomWidth: 3,
-    borderBottomColor: '#D97706',
+    borderBottomWidth: 5,
+    borderBottomColor: '#46A302',
     marginTop: 4
   },
   launchQuizBtnText: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: '900',
-    color: '#0F172A'
+    color: '#FFFFFF',
+    letterSpacing: 0.5
+  },
+  detailPopupCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    padding: 22,
+    borderWidth: 3,
+    borderBottomWidth: 6,
+    borderColor: '#FFC72C',
+    borderBottomColor: '#D97706',
+    alignItems: 'center'
+  },
+  detailPopupHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  detailPopupEmoji: {
+    fontSize: 48
+  },
+  detailPopupTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginBottom: 8
+  },
+  detailPointsPill: {
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    marginBottom: 10
+  },
+  detailPointsText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#B45309'
+  },
+  detailPopupDesc: {
+    fontSize: 15,
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 22,
+    fontWeight: '600',
+    marginBottom: 16
+  },
+  detailStatusRow: {
+    marginBottom: 16,
+    width: '100%',
+    alignItems: 'center'
+  },
+  detailStatusBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1.5
+  },
+  statusBadgeUnlocked: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981'
+  },
+  statusBadgeTextUnlocked: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#065F46'
+  },
+  statusBadgeLocked: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#CBD5E1'
+  },
+  statusBadgeTextLocked: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#64748B'
+  },
+  detailDoneBtn: {
+    width: '100%',
+    backgroundColor: '#0F172A',
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderBottomWidth: 4,
+    borderBottomColor: '#334155'
+  },
+  detailDoneBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900'
+  },
+  characterHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  characterStageTouchable: {
+    borderRadius: 20,
+    shadowColor: '#D97706',
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    flexShrink: 0
+  },
+  characterMetaCol: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center'
+  },
+  characterShopActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    marginBottom: 6,
+    flexWrap: 'wrap'
+  },
+  spendableHoneyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+    borderRadius: 9,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    gap: 4
+  },
+  spendableHoneyLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#92400E'
+  },
+  spendableHoneyValue: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    color: '#B45309'
+  },
+  dressUpShopBtn: {
+    backgroundColor: '#0F172A',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: '#334155'
+  },
+  dressUpShopBtnText: {
+    color: '#FDE047',
+    fontSize: 12.5,
+    fontWeight: '900'
   }
 });

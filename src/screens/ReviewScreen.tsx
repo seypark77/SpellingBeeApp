@@ -56,66 +56,53 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Top Review Summary Header */}
-      <View style={styles.headerCard}>
-        <Text style={styles.headerTag}>🎯 PERSONALIZED REVIEW HIVE</Text>
-        <Text style={styles.headerTitle}>Wrong Word Bank</Text>
-        <Text style={styles.headerSub}>
-          Every word you miss is saved here automatically. Spell a tricky word right 2 times in
-          Review Mode to graduate it to Mastered!
-        </Text>
+      {/* Big Chunky Play Buttons for Review */}
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          style={[
+            styles.practiceActiveBtn,
+            activeList.length === 0 && styles.disabledBtn
+          ]}
+          disabled={activeList.length === 0}
+          onPress={() =>
+            onStartReviewQuiz({
+              mode: 'review_active',
+              count: 50,
+              order: 'random'
+            })
+          }
+        >
+          <Text style={styles.bigBtnEmoji}>🎯</Text>
+          <Text style={styles.practiceActiveBtnText}>▶ ({activeList.length})</Text>
+        </TouchableOpacity>
 
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={[
-              styles.practiceActiveBtn,
-              activeList.length === 0 && styles.disabledBtn
-            ]}
-            disabled={activeList.length === 0}
-            onPress={() =>
-              onStartReviewQuiz({
-                mode: 'review_active',
-                count: 50,
-                order: 'random'
-              })
-            }
-          >
-            <Text style={styles.practiceActiveBtnText}>
-              🔥 Practice Needs Review ({activeList.length})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.practiceAllBtn,
-              allMissedList.length === 0 && styles.disabledBtn
-            ]}
-            disabled={allMissedList.length === 0}
-            onPress={() =>
-              onStartReviewQuiz({
-                mode: 'review_all',
-                count: 50,
-                order: 'random'
-              })
-            }
-          >
-            <Text style={styles.practiceAllBtnText}>
-              🔄 Practice All Past Mistakes ({allMissedList.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[
+            styles.practiceAllBtn,
+            allMissedList.length === 0 && styles.disabledBtn
+          ]}
+          disabled={allMissedList.length === 0}
+          onPress={() =>
+            onStartReviewQuiz({
+              mode: 'review_all',
+              count: 50,
+              order: 'random'
+            })
+          }
+        >
+          <Text style={styles.bigBtnEmoji}>🔄</Text>
+          <Text style={styles.practiceAllBtnText}>▶ ({allMissedList.length})</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Filter Tabs */}
+      {/* Visual Icon Filter Tabs */}
       <View style={styles.filterRow}>
         <TouchableOpacity
           style={[styles.filterTab, filter === 'active' && styles.filterTabActive]}
           onPress={() => setFilter('active')}
         >
-          <Text
-            style={[styles.filterTabText, filter === 'active' && styles.filterTabTextActive]}
-          >
-            Needs Practice ({activeList.length})
+          <Text style={[styles.filterTabText, filter === 'active' && styles.filterTabTextActive]}>
+            🎯 {activeList.length}
           </Text>
         </TouchableOpacity>
 
@@ -129,7 +116,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
               filter === 'mastered' && styles.filterTabTextActive
             ]}
           >
-            Mastered ({masteredList.length})
+            ✅ {masteredList.length}
           </Text>
         </TouchableOpacity>
 
@@ -138,7 +125,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           onPress={() => setFilter('all')}
         >
           <Text style={[styles.filterTabText, filter === 'all' && styles.filterTabTextActive]}>
-            All History ({allMissedList.length})
+            📚 {allMissedList.length}
           </Text>
         </TouchableOpacity>
       </View>
@@ -147,18 +134,6 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       {displayedItems.length === 0 ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyEmoji}>🎉</Text>
-          <Text style={styles.emptyTitle}>
-            {filter === 'active'
-              ? 'No Tricky Words Waiting!'
-              : filter === 'mastered'
-              ? 'No Mastered Mistakes Yet'
-              : 'Your Wrong Word Bank Is Empty!'}
-          </Text>
-          <Text style={styles.emptyDesc}>
-            {filter === 'active'
-              ? 'Any word you miss during practice will appear here so you can conquer it!'
-              : 'Practice your missed words twice to graduate them to Mastered status!'}
-          </Text>
         </View>
       ) : (
         displayedItems.map(({ word, prog }) => {
@@ -168,11 +143,10 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             <View key={word.id} style={styles.wordCard}>
               <View style={styles.cardTopRow}>
                 <View style={styles.wordTitleWrap}>
-                  <Text style={styles.wordNumber}>#{word.id}</Text>
-                  <Text style={styles.wordText}>{word.word}</Text>
-                  <View style={styles.levelBadge}>
-                    <Text style={styles.levelBadgeText}>{word.level}</Text>
+                  <View style={styles.numBadge}>
+                    <Text style={styles.wordNumber}>#{word.id}</Text>
                   </View>
+                  <Text style={styles.wordText}>{word.word}</Text>
                 </View>
 
                 <View style={styles.audioBtns}>
@@ -180,18 +154,18 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
                     style={styles.audioPill}
                     onPress={() => speakWord(word, false)}
                   >
-                    <Text style={styles.audioPillText}>🔊 Hear</Text>
+                    <Text style={styles.actionEmoji}>🔊</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.audioPillSlow}
                     onPress={() => speakWord(word, true)}
                   >
-                    <Text style={styles.audioPillSlowText}>🐢 Slow</Text>
+                    <Text style={styles.actionEmoji}>🐢</Text>
                   </TouchableOpacity>
                 </View>
               </View>
 
-              {/* Wrong count & last attempt */}
+              {/* Visual Progress Dots & Actions */}
               <View style={styles.metaRow}>
                 <View
                   style={[
@@ -205,46 +179,32 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
                       isMastered ? styles.statusTextMastered : styles.statusTextNeedsReview
                     ]}
                   >
-                    {isMastered
-                      ? '✅ Mastered (2/2)'
-                      : `🎯 Review Progress: ${streakProgress}/2`}
+                    {isMastered ? '✅ 2/2' : `🎯 ${streakProgress}/2`}
                   </Text>
                 </View>
 
-                <Text style={styles.wrongCountText}>
-                  Missed {prog.wrongCount} {prog.wrongCount === 1 ? 'time' : 'times'}
-                </Text>
+                <View style={styles.cardFooterRight}>
+                  <TouchableOpacity
+                    style={styles.iconBtn}
+                    onPress={() =>
+                      Linking.openURL(
+                        `https://www.google.com/search?q=define+${encodeURIComponent(word.word)}`
+                      )
+                    }
+                  >
+                    <Text style={styles.iconBtnText}>🔗</Text>
+                  </TouchableOpacity>
 
-                {prog.lastTypedAttempt && (
-                  <Text style={styles.lastAttemptText}>
-                    Last typed: "{prog.lastTypedAttempt}"
-                  </Text>
-                )}
+                  <TouchableOpacity
+                    style={styles.toggleMasteryBtn}
+                    onPress={() => onToggleMastery(word.id, !isMastered)}
+                  >
+                    <Text style={styles.toggleMasteryText}>{isMastered ? '↩️' : '✅'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              <Text style={styles.posAndDef}>
-                <Text style={styles.posItalic}>({word.partOfSpeech}) </Text>
-                {word.definition}
-              </Text>
-
-              <View style={styles.sentenceWrap}>
-                <Text style={styles.sentenceText}>"{word.exampleSentence}"</Text>
-              </View>
-
-              <View style={styles.cardFooter}>
-                <TouchableOpacity onPress={() => Linking.openURL(word.mwUrl)}>
-                  <Text style={styles.mwLink}>🔗 Merriam-Webster ↗</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.toggleMasteryBtn}
-                  onPress={() => onToggleMastery(word.id, !isMastered)}
-                >
-                  <Text style={styles.toggleMasteryText}>
-                    {isMastered ? '↩ Move Back to Practice' : '✓ Mark as Mastered'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={styles.posAndDef}>{word.definition}</Text>
             </View>
           );
         })
@@ -265,273 +225,221 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center'
   },
-  headerCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 22,
-    padding: 18,
-    borderWidth: 2,
-    borderColor: '#FFC72C',
-    marginBottom: 14
-  },
-  headerTag: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#FFC72C',
-    letterSpacing: 0.5,
-    marginBottom: 2
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#FFFFFF'
-  },
-  headerSub: {
-    fontSize: 13,
-    color: '#CBD5E1',
-    marginTop: 4,
-    lineHeight: 19,
-    marginBottom: 14
-  },
   actionRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10
+    gap: 12,
+    marginBottom: 16
   },
   practiceActiveBtn: {
     flex: 1,
-    minWidth: 200,
-    backgroundColor: '#FFC72C',
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    paddingVertical: 18,
+    borderRadius: 22,
     alignItems: 'center',
-    borderBottomWidth: 3,
-    borderBottomColor: '#D97706'
+    justifyContent: 'center',
+    borderBottomWidth: 6,
+    borderBottomColor: '#B91C1C',
+    flexDirection: 'row',
+    gap: 10
   },
   practiceActiveBtnText: {
-    fontSize: 13,
+    color: '#FFFFFF',
     fontWeight: '900',
-    color: '#0F172A'
+    fontSize: 22
   },
   practiceAllBtn: {
     flex: 1,
-    minWidth: 200,
-    backgroundColor: '#1E293B',
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    borderRadius: 12,
+    backgroundColor: '#0F172A',
+    paddingVertical: 18,
+    borderRadius: 22,
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#475569'
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderBottomWidth: 6,
+    borderColor: '#FFC72C',
+    borderBottomColor: '#D97706',
+    flexDirection: 'row',
+    gap: 10
   },
   practiceAllBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#F8FAFC'
+    color: '#FFC72C',
+    fontWeight: '900',
+    fontSize: 22
+  },
+  bigBtnEmoji: {
+    fontSize: 28
   },
   disabledBtn: {
-    opacity: 0.45
+    opacity: 0.4
   },
   filterRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14
+    backgroundColor: '#E2E8F0',
+    borderRadius: 18,
+    padding: 5,
+    marginBottom: 16,
+    gap: 6
   },
   filterTab: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0'
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center'
   },
   filterTabActive: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B'
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 3,
+    borderBottomColor: '#CBD5E1'
   },
   filterTabText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#475569'
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#64748B'
   },
   filterTabTextActive: {
-    color: '#92400E'
+    color: '#0F172A'
   },
   emptyCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 28,
+    borderRadius: 26,
+    paddingVertical: 48,
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    marginTop: 8
+    borderWidth: 2,
+    borderBottomWidth: 5,
+    borderColor: '#E2E8F0'
   },
   emptyEmoji: {
-    fontSize: 44,
-    marginBottom: 8
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#0F172A',
-    marginBottom: 4
-  },
-  emptyDesc: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 19
+    fontSize: 64
   },
   wordCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 15,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    marginBottom: 12
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 2,
+    borderBottomWidth: 5,
+    borderColor: '#E2E8F0'
   },
   cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8
+    marginBottom: 10
   },
   wordTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 10,
+    flex: 1
+  },
+  numBadge: {
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10
   },
   wordNumber: {
     fontSize: 13,
-    fontWeight: '800',
-    color: '#64748B'
+    fontWeight: '900',
+    color: '#FFC72C'
   },
   wordText: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '900',
     color: '#0F172A'
-  },
-  levelBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8
-  },
-  levelBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#92400E'
   },
   audioBtns: {
     flexDirection: 'row',
-    gap: 6
+    gap: 8
   },
   audioPill: {
+    width: 46,
+    height: 46,
     backgroundColor: '#FFC72C',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 9
-  },
-  audioPillText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#0F172A'
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 4,
+    borderBottomColor: '#D97706'
   },
   audioPillSlow: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 9
+    width: 46,
+    height: 46,
+    backgroundColor: '#E0F2FE',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#38BDF8',
+    borderBottomColor: '#0284C7'
   },
-  audioPillSlowText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#334155'
+  actionEmoji: {
+    fontSize: 20
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8
+    justifyContent: 'space-between',
+    marginBottom: 10
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12
   },
   statusNeedsReview: {
     backgroundColor: '#FEE2E2'
   },
   statusMastered: {
-    backgroundColor: '#D1FAE5'
+    backgroundColor: '#DCFCE7'
   },
   statusBadgeText: {
-    fontSize: 11,
-    fontWeight: '800'
+    fontSize: 15,
+    fontWeight: '900'
   },
   statusTextNeedsReview: {
-    color: '#991B1B'
+    color: '#B91C1C'
   },
   statusTextMastered: {
-    color: '#065F46'
+    color: '#15803D'
   },
-  wrongCountText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#DC2626'
-  },
-  lastAttemptText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontStyle: 'italic'
-  },
-  posAndDef: {
-    fontSize: 14,
-    color: '#1E293B',
-    lineHeight: 20,
-    marginBottom: 8
-  },
-  posItalic: {
-    fontStyle: 'italic',
-    fontWeight: '700',
-    color: '#0284C7'
-  },
-  sentenceWrap: {
-    backgroundColor: '#F8FAFC',
-    padding: 10,
-    borderRadius: 10,
-    borderLeftWidth: 3,
-    borderLeftColor: '#FFC72C',
-    marginBottom: 10
-  },
-  sentenceText: {
-    fontSize: 13,
-    color: '#334155',
-    fontStyle: 'italic'
-  },
-  cardFooter: {
+  cardFooterRight: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
+    gap: 8
   },
-  mwLink: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0284C7'
+  iconBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderBottomWidth: 3,
+    borderColor: '#CBD5E1'
+  },
+  iconBtnText: {
+    fontSize: 18
   },
   toggleMasteryBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderBottomWidth: 3,
+    borderColor: '#CBD5E1'
   },
   toggleMasteryText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#334155'
+    fontSize: 18
+  },
+  posAndDef: {
+    fontSize: 17,
+    color: '#1E293B',
+    lineHeight: 24,
+    fontWeight: '600'
   }
 });

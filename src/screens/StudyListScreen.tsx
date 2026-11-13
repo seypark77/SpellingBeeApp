@@ -11,6 +11,8 @@ import {
 import { BeeLevel, WordEntry, WordProgress } from '../types/spelling';
 import { speakLettersOutLoud, speakText, speakWord } from '../utils/speechUtils';
 
+type StudyFilterKey = 'All' | BeeLevel | 'Mastered';
+
 interface StudyListScreenProps {
   allWords: WordEntry[];
   progressMap: Record<number, WordProgress>;
@@ -20,15 +22,38 @@ export const StudyListScreen: React.FC<StudyListScreenProps> = ({
   allWords,
   progressMap
 }) => {
-  const [selectedLevel, setSelectedLevel] = useState<'All' | BeeLevel>('All');
+  const [selectedLevel, setSelectedLevel] = useState<StudyFilterKey>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [hideSpellings, setHideSpellings] = useState(false);
   const [revealedIds, setRevealedIds] = useState<Record<number, boolean>>({});
 
+  const masteredCount = useMemo(() => {
+    return allWords.filter((w) => {
+      const p = progressMap[w.id];
+      return p && (p.status === 'correct' || p.status === 'mastered_review');
+    }).length;
+  }, [allWords, progressMap]);
+
+  const levelTabs: { key: StudyFilterKey; icon: string }[] = useMemo(() => [
+    { key: 'All', icon: '🏆 450' },
+    { key: 'Mastered', icon: `✅ ${masteredCount}` },
+    { key: 'One Bee', icon: '🐝' },
+    { key: 'Two Bee', icon: '🐝🐝' },
+    { key: 'Three Bee', icon: '🐝🐝🐝' }
+  ], [masteredCount]);
+
   const filteredWords = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return allWords.filter((w) => {
-      if (selectedLevel !== 'All' && w.level !== selectedLevel) return false;
+      const p = progressMap[w.id];
+      const isMastered = p && (p.status === 'correct' || p.status === 'mastered_review');
+
+      if (selectedLevel === 'Mastered') {
+        if (!isMastered) return false;
+      } else if (selectedLevel !== 'All' && w.level !== selectedLevel) {
+        return false;
+      }
+
       if (!q) return true;
       return (
         w.word.toLowerCase().includes(q) ||
@@ -36,7 +61,7 @@ export const StudyListScreen: React.FC<StudyListScreenProps> = ({
         w.definition.toLowerCase().includes(q)
       );
     });
-  }, [allWords, selectedLevel, searchQuery]);
+  }, [allWords, selectedLevel, searchQuery, progressMap]);
 
   const toggleRevealCard = (id: number) => {
     setRevealedIds((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -44,15 +69,17 @@ export const StudyListScreen: React.FC<StudyListScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Top Filter & Search Controls */}
+      {/* Duolingo-Style Search & Icon Filter Bar */}
       <View style={styles.topControls}>
-        <View style={styles.titleRow}>
-          <View>
-            <Text style={styles.screenTitle}>📖 2026–2027 Study List</Text>
-            <Text style={styles.screenSub}>
-              Showing {filteredWords.length} of {allWords.length} official words
-            </Text>
-          </View>
+        <View style={styles.searchRow}>
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="🔍  #1–450..."
+            placeholderTextColor="#94A3B8"
+            autoCorrect={false}
+          />
 
           <TouchableOpacity
             style={[styles.hideToggleBtn, hideSpellings && styles.hideToggleBtnActive]}
@@ -61,43 +88,27 @@ export const StudyListScreen: React.FC<StudyListScreenProps> = ({
               setRevealedIds({});
             }}
           >
-            <Text
-              style={[
-                styles.hideToggleText,
-                hideSpellings && styles.hideToggleTextActive
-              ]}
-            >
-              {hideSpellings ? '👁️ Show Spellings' : '🙈 Flashcard Mode'}
-            </Text>
+            <Text style={styles.hideToggleEmoji}>{hideSpellings ? '🙈' : '👁️'}</Text>
           </TouchableOpacity>
         </View>
 
-        <TextInput
-          style={styles.searchInput}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search word, #number (e.g. 226), or definition..."
-          placeholderTextColor="#94A3B8"
-          autoCorrect={false}
-        />
-
         <View style={styles.levelFilterRow}>
-          {(['All', 'One Bee', 'Two Bee', 'Three Bee'] as const).map((lvl) => (
+          {levelTabs.map((tab) => (
             <TouchableOpacity
-              key={lvl}
+              key={tab.key}
               style={[
                 styles.levelPill,
-                selectedLevel === lvl && styles.levelPillActive
+                selectedLevel === tab.key && styles.levelPillActive
               ]}
-              onPress={() => setSelectedLevel(lvl)}
+              onPress={() => setSelectedLevel(tab.key)}
             >
               <Text
                 style={[
                   styles.levelPillText,
-                  selectedLevel === lvl && styles.levelPillTextActive
+                  selectedLevel === tab.key && styles.levelPillTextActive
                 ]}
               >
-                {lvl === 'All' ? 'All (450)' : lvl}
+                {tab.icon}
               </Text>
             </TouchableOpacity>
           ))}
@@ -132,16 +143,13 @@ export const StudyListScreen: React.FC<StudyListScreenProps> = ({
                       style={styles.hiddenMaskBtn}
                       onPress={() => toggleRevealCard(item.id)}
                     >
-                      <Text style={styles.hiddenMaskText}>Tap to Reveal Spelling 👀</Text>
+                      <Text style={styles.hiddenMaskText}>👀</Text>
                     </TouchableOpacity>
                   ) : (
-                    <View>
+                    <View style={styles.wordNameRow}>
                       <Text style={styles.wordTitle}>{item.word}</Text>
-                      {item.altSpellings && item.altSpellings.length > 0 && (
-                        <Text style={styles.altText}>
-                          OR {item.altSpellings[0]}
-                        </Text>
-                      )}
+                      {isMastered && <Text style={styles.statusEmoji}>✅</Text>}
+                      {isNeedsReview && <Text style={styles.statusEmoji}>🎯</Text>}
                     </View>
                   )}
                 </View>
@@ -151,63 +159,50 @@ export const StudyListScreen: React.FC<StudyListScreenProps> = ({
                     style={styles.hearBtn}
                     onPress={() => speakWord(item, false)}
                   >
-                    <Text style={styles.hearBtnText}>🔊 Word</Text>
+                    <Text style={styles.actionEmoji}>🔊</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.slowBtn}
                     onPress={() => speakWord(item, true)}
                   >
-                    <Text style={styles.slowBtnText}>🐢</Text>
+                    <Text style={styles.actionEmoji}>🐢</Text>
                   </TouchableOpacity>
                   {!isHidden && (
                     <TouchableOpacity
                       style={styles.spellBtn}
                       onPress={() => speakLettersOutLoud(item.word)}
                     >
-                      <Text style={styles.spellBtnText}>🔤 A-B-C</Text>
+                      <Text style={styles.actionEmoji}>🔤</Text>
                     </TouchableOpacity>
                   )}
                 </View>
               </View>
 
-              <View style={styles.tagsRow}>
-                <View style={styles.levelTag}>
-                  <Text style={styles.levelTagText}>
-                    {item.level} ({item.gradeLabel})
-                  </Text>
-                </View>
-                <View style={styles.posTag}>
-                  <Text style={styles.posTagText}>{item.partOfSpeech}</Text>
-                </View>
-                {isMastered && (
-                  <View style={styles.masteredTag}>
-                    <Text style={styles.masteredTagText}>✅ Mastered</Text>
-                  </View>
-                )}
-                {isNeedsReview && (
-                  <View style={styles.reviewTag}>
-                    <Text style={styles.reviewTagText}>🎯 Needs Review</Text>
-                  </View>
-                )}
-              </View>
-
               <Text style={styles.definitionText}>{item.definition}</Text>
 
               <View style={styles.exampleBox}>
-                <Text style={styles.exampleLabel}>EXAMPLE SENTENCE:</Text>
                 <Text style={styles.exampleText}>
                   "{isHidden ? item.blankedSentence : item.exampleSentence}"
                 </Text>
-              </View>
+                <View style={styles.cardBottomRow}>
+                  <TouchableOpacity
+                    style={styles.miniIconBtn}
+                    onPress={() => speakText(item.exampleSentence, false)}
+                  >
+                    <Text style={styles.miniIconEmoji}>💬🔊</Text>
+                  </TouchableOpacity>
 
-              <View style={styles.cardBottomRow}>
-                <TouchableOpacity onPress={() => speakText(item.exampleSentence, false)}>
-                  <Text style={styles.listenSentenceLink}>🔊 Hear Sentence</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={() => Linking.openURL(item.mwUrl)}>
-                  <Text style={styles.mwLink}>🔗 Merriam-Webster.com ↗</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.miniIconBtn}
+                    onPress={() =>
+                      Linking.openURL(
+                        `https://www.google.com/search?q=define+${encodeURIComponent(item.word)}`
+                      )
+                    }
+                  >
+                    <Text style={styles.miniIconEmoji}>🔗</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           );
@@ -225,79 +220,68 @@ const styles = StyleSheet.create({
   topControls: {
     backgroundColor: '#0F172A',
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 12,
+    paddingTop: 12,
+    paddingBottom: 14,
     borderBottomWidth: 3,
-    borderBottomColor: '#FFC72C'
+    borderBottomColor: '#1E293B'
   },
-  titleRow: {
+  searchRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10
+    gap: 10,
+    marginBottom: 12
   },
-  screenTitle: {
-    fontSize: 19,
-    fontWeight: '900',
-    color: '#FFFFFF'
-  },
-  screenSub: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontWeight: '600'
+  searchInput: {
+    flex: 1,
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+    borderWidth: 2,
+    borderColor: '#334155'
   },
   hideToggleBtn: {
+    width: 52,
+    height: 50,
     backgroundColor: '#1E293B',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#475569'
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderBottomWidth: 4,
+    borderColor: '#334155'
   },
   hideToggleBtnActive: {
     backgroundColor: '#FFC72C',
     borderColor: '#D97706'
   },
-  hideToggleText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#F8FAFC'
-  },
-  hideToggleTextActive: {
-    color: '#0F172A'
-  },
-  searchInput: {
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    borderWidth: 1,
-    borderColor: '#334155',
-    marginBottom: 10
+  hideToggleEmoji: {
+    fontSize: 24
   },
   levelFilterRow: {
     flexDirection: 'row',
-    gap: 6
+    gap: 8
   },
   levelPill: {
     flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingVertical: 10,
+    borderRadius: 14,
     backgroundColor: '#1E293B',
     alignItems: 'center',
-    borderWidth: 1,
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderBottomWidth: 4,
     borderColor: '#334155'
   },
   levelPillActive: {
     backgroundColor: '#FFC72C',
-    borderColor: '#F59E0B'
+    borderColor: '#D97706'
   },
   levelPillText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '900',
     color: '#CBD5E1'
   },
   levelPillTextActive: {
@@ -312,187 +296,138 @@ const styles = StyleSheet.create({
   },
   wordCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1.5,
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 2,
+    borderBottomWidth: 5,
     borderColor: '#E2E8F0'
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8
+    marginBottom: 10
   },
   wordLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10
+    gap: 10,
+    flex: 1
   },
   numBadge: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10
   },
   numBadgeText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#475569'
+    color: '#FFC72C',
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  wordNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap'
   },
   wordTitle: {
-    fontSize: 21,
+    fontSize: 24,
     fontWeight: '900',
     color: '#0F172A'
   },
-  altText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0284C7'
+  statusEmoji: {
+    fontSize: 18
   },
   hiddenMaskBtn: {
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderBottomWidth: 4,
     borderColor: '#F59E0B'
   },
   hiddenMaskText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#92400E'
+    fontSize: 22
   },
   audioRow: {
     flexDirection: 'row',
-    gap: 6
+    gap: 8
   },
   hearBtn: {
+    width: 46,
+    height: 46,
     backgroundColor: '#FFC72C',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 9
-  },
-  hearBtnText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#0F172A'
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 4,
+    borderBottomColor: '#D97706'
   },
   slowBtn: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 9
-  },
-  slowBtnText: {
-    fontSize: 12
+    width: 46,
+    height: 46,
+    backgroundColor: '#E0F2FE',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#38BDF8',
+    borderBottomColor: '#0284C7'
   },
   spellBtn: {
+    width: 46,
+    height: 46,
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 9
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#CBD5E1'
   },
-  spellBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#334155'
-  },
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 8
-  },
-  levelTag: {
-    backgroundColor: '#FFFBEB',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#FDE68A'
-  },
-  levelTagText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#92400E'
-  },
-  posTag: {
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6
-  },
-  posTagText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0369A1',
-    fontStyle: 'italic'
-  },
-  masteredTag: {
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6
-  },
-  masteredTagText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#065F46'
-  },
-  reviewTag: {
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6
-  },
-  reviewTagText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#991B1B'
+  actionEmoji: {
+    fontSize: 20
   },
   definitionText: {
-    fontSize: 14,
+    fontSize: 17,
     color: '#1E293B',
-    lineHeight: 20,
-    marginBottom: 8,
-    fontWeight: '500'
+    lineHeight: 24,
+    fontWeight: '600',
+    marginBottom: 10
   },
   exampleBox: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 10,
-    borderLeftWidth: 3,
-    borderLeftColor: '#FFC72C',
-    marginBottom: 8
-  },
-  exampleLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#64748B',
-    marginBottom: 2
+    padding: 12,
+    borderRadius: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FFC72C'
   },
   exampleText: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#334155',
     fontStyle: 'italic',
-    lineHeight: 18
+    lineHeight: 22,
+    marginBottom: 8
   },
   cardBottomRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
+    justifyContent: 'flex-end',
+    gap: 8
   },
-  listenSentenceLink: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#B45309'
+  miniIconBtn: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderBottomWidth: 3,
+    borderColor: '#CBD5E1'
   },
-  mwLink: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0284C7'
+  miniIconEmoji: {
+    fontSize: 16
   }
 });
