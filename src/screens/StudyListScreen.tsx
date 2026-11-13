@@ -192,6 +192,8 @@ export const StudyListScreen: React.FC<StudyListScreenProps> = ({
                     <Text style={styles.miniIconEmoji}>💬🔊</Text>
                   </TouchableOpacity>
 
+                  {/* Kids Category Compliance: External web link commented out */}
+                  {/*
                   <TouchableOpacity
                     style={styles.miniIconBtn}
                     onPress={() =>
@@ -202,6 +204,7 @@ export const StudyListScreen: React.FC<StudyListScreenProps> = ({
                   >
                     <Text style={styles.miniIconEmoji}>🔗</Text>
                   </TouchableOpacity>
+                  */}
                 </View>
               </View>
             </View>

@@ -426,6 +426,8 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
             <View style={styles.postAnswerSentenceBox}>
               <Text style={styles.postAnswerSentenceLabel}>EXAMPLE SENTENCE:</Text>
               <Text style={styles.postAnswerSentenceText}>"{currentWord.exampleSentence}"</Text>
+              {/* Kids Category Compliance: External web link commented out */}
+              {/*
               <TouchableOpacity
                 style={styles.mwLinkBtn}
                 onPress={() =>
@@ -438,6 +440,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
                   🔗 Look up "{currentWord.word}" in Dictionary ↗
                 </Text>
               </TouchableOpacity>
+              */}
             </View>
 
             {/* Newly Unlocked Badges Toast */}

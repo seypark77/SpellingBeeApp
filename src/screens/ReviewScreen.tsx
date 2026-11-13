@@ -184,6 +184,8 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
                 </View>
 
                 <View style={styles.cardFooterRight}>
+                  {/* Kids Category Compliance: External web link commented out */}
+                  {/*
                   <TouchableOpacity
                     style={styles.iconBtn}
                     onPress={() =>
@@ -194,6 +196,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
                   >
                     <Text style={styles.iconBtnText}>🔗</Text>
                   </TouchableOpacity>
+                  */}
 
                   <TouchableOpacity
                     style={styles.toggleMasteryBtn}
