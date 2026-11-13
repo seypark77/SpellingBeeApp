@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Alert,
   Image,
   Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -119,39 +121,44 @@ export const CharacterWardrobeModal: React.FC<CharacterWardrobeModalProps> = ({
     [activeCategory]
   );
 
-  const handleEquipOrBuy = async (item: ShopItem) => {
-    if (busy) return;
-    const isOwned = item.isDefault || item.price === 0 || ownedItems.includes(item.id);
-
-    if (isOwned) {
-      setMasterPreviewOn(false);
+  const handlePreview = (item: ShopItem) => {
+    setMasterPreviewOn(false);
+    triggerHaptic('light');
+    if (previewItem?.id === item.id) {
       setPreviewItem(null);
-      setStatusNotice(`Equipped "${item.nameEn}"!`);
-      setBusy(true);
-      try {
-        triggerHaptic('light');
-        const nextCustom = applyItemToCustomization(equippedCustomization, item);
-        await onSaveCustomization({
-          spentHoney: profile.spentHoney || 0,
-          ownedItems,
-          customization: nextCustom,
-        });
-      } finally {
-        setBusy(false);
-      }
+      setStatusNotice(null);
       return;
     }
-
-    if (spendableHoney < item.price) {
-      triggerHaptic('error');
-      setMasterPreviewOn(false);
-      setPreviewItem(item);
+    setPreviewItem(item);
+    const canAfford = spendableHoney >= item.price;
+    if (canAfford) {
+      setStatusNotice(`👀 Previewing "${item.nameEn}"! Tap "Unlock" to purchase.`);
+    } else {
       const diff = item.price - spendableHoney;
-      setStatusNotice(`Previewing! You need ${diff} more 🍯 to unlock.`);
-      return;
+      setStatusNotice(`👀 Previewing "${item.nameEn}"! Need ${diff} more 🍯 to unlock.`);
     }
+  };
 
-    // Purchase & Equip immediately
+  const handleEquip = async (item: ShopItem) => {
+    if (busy) return;
+    setMasterPreviewOn(false);
+    setPreviewItem(null);
+    setStatusNotice(`Equipped "${item.nameEn}"!`);
+    setBusy(true);
+    try {
+      triggerHaptic('light');
+      const nextCustom = applyItemToCustomization(equippedCustomization, item);
+      await onSaveCustomization({
+        spentHoney: profile.spentHoney || 0,
+        ownedItems,
+        customization: nextCustom,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const executePurchase = async (item: ShopItem) => {
     setMasterPreviewOn(false);
     setPreviewItem(null);
     setBusy(true);
@@ -169,6 +176,39 @@ export const CharacterWardrobeModal: React.FC<CharacterWardrobeModalProps> = ({
       setStatusNotice(`🎉 Unlocked & equipped "${item.nameEn}"!`);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleUnlock = (item: ShopItem) => {
+    if (busy) return;
+    const canAfford = spendableHoney >= item.price;
+    if (!canAfford) {
+      triggerHaptic('error');
+      setMasterPreviewOn(false);
+      setPreviewItem(item);
+      const diff = item.price - spendableHoney;
+      setStatusNotice(`You need ${diff} more 🍯 to unlock "${item.nameEn}".`);
+      return;
+    }
+
+    const confirmMsg = `Spend ${item.price} 🍯 to unlock "${item.nameEn}"?`;
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(confirmMsg)) {
+        executePurchase(item);
+      }
+    } else {
+      Alert.alert(
+        'Unlock Item',
+        confirmMsg,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: `Unlock (${item.price} 🍯)`,
+            style: 'default',
+            onPress: () => executePurchase(item),
+          },
+        ]
+      );
     }
   };
 
@@ -206,46 +246,78 @@ export const CharacterWardrobeModal: React.FC<CharacterWardrobeModalProps> = ({
           <CharacterAvatar customization={displayCustomization} size={172} showBackdrop={true} />
 
           <View style={styles.stageControlsRow}>
-            <TouchableOpacity
-              style={[
-                styles.masterPreviewBtn,
-                masterPreviewOn && styles.masterPreviewBtnActive,
-              ]}
-              onPress={() => {
-                triggerHaptic('light');
-                setPreviewItem(null);
-                setMasterPreviewOn((prev) => {
-                  const next = !prev;
-                  setStatusNotice(
-                    next ? '👑 Previewing Master Bee set!' : null
-                  );
-                  return next;
-                });
-              }}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[
-                  styles.masterPreviewBtnText,
-                  masterPreviewOn && styles.masterPreviewBtnTextActive,
-                ]}
-              >
-                {masterPreviewOn ? '↩ Back to My Bee' : '👑 Preview Master Bee'}
-              </Text>
-            </TouchableOpacity>
+            {previewItem && !ownedItems.includes(previewItem.id) ? (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.stageUnlockBtn,
+                    spendableHoney < previewItem.price && styles.stageUnlockBtnDisabled,
+                  ]}
+                  onPress={() => handleUnlock(previewItem)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.stageUnlockBtnText}>
+                    {spendableHoney >= previewItem.price
+                      ? `🍯 Unlock (${previewItem.price} 🍯)`
+                      : `🔒 Need ${previewItem.price - spendableHoney} more 🍯`}
+                  </Text>
+                </TouchableOpacity>
 
-            {(masterPreviewOn || previewItem) && (
-              <TouchableOpacity
-                style={styles.resetPreviewBtn}
-                onPress={() => {
-                  setMasterPreviewOn(false);
-                  setPreviewItem(null);
-                  setStatusNotice(null);
-                }}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.resetPreviewText}>Reset Preview</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.resetPreviewBtn}
+                  onPress={() => {
+                    setPreviewItem(null);
+                    setStatusNotice(null);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.resetPreviewText}>Reset</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.masterPreviewBtn,
+                    masterPreviewOn && styles.masterPreviewBtnActive,
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('light');
+                    setPreviewItem(null);
+                    setMasterPreviewOn((prev) => {
+                      const next = !prev;
+                      setStatusNotice(
+                        next ? '👑 Previewing Master Bee set!' : null
+                      );
+                      return next;
+                    });
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text
+                    style={[
+                      styles.masterPreviewBtnText,
+                      masterPreviewOn && styles.masterPreviewBtnTextActive,
+                    ]}
+                  >
+                    {masterPreviewOn ? '↩ Back to My Bee' : '👑 Preview Master Bee'}
+                  </Text>
+                </TouchableOpacity>
+
+                {masterPreviewOn && (
+                  <TouchableOpacity
+                    style={styles.resetPreviewBtn}
+                    onPress={() => {
+                      setMasterPreviewOn(false);
+                      setPreviewItem(null);
+                      setStatusNotice(null);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.resetPreviewText}>Reset Preview</Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
           </View>
 
@@ -300,7 +372,13 @@ export const CharacterWardrobeModal: React.FC<CharacterWardrobeModalProps> = ({
                     equipped && styles.itemCardEquipped,
                     isPreviewing && !equipped && styles.itemCardPreviewing,
                   ]}
-                  onPress={() => handleEquipOrBuy(item)}
+                  onPress={() => {
+                    if (isOwned) {
+                      handleEquip(item);
+                    } else {
+                      handlePreview(item);
+                    }
+                  }}
                   activeOpacity={0.85}
                 >
                   <View style={styles.itemTopRow}>
@@ -333,6 +411,7 @@ export const CharacterWardrobeModal: React.FC<CharacterWardrobeModalProps> = ({
                         style={[
                           styles.priceTag,
                           !canAfford && styles.priceTagLocked,
+                          isPreviewing && styles.priceTagPreviewing,
                         ]}
                       >
                         <Text
@@ -354,39 +433,54 @@ export const CharacterWardrobeModal: React.FC<CharacterWardrobeModalProps> = ({
                     {item.description}
                   </Text>
 
-                  <View
-                    style={[
-                      styles.actionBtn,
-                      equipped
-                        ? styles.actionBtnEquipped
-                        : isOwned
-                          ? styles.actionBtnOwned
-                          : canAfford
-                            ? styles.actionBtnBuy
-                            : styles.actionBtnLocked,
-                    ]}
-                  >
-                    <Text
+                  {/* Action Button */}
+                  {isOwned ? (
+                    <TouchableOpacity
                       style={[
-                        styles.actionBtnText,
-                        equipped
-                          ? styles.actionBtnTextEquipped
-                          : isOwned
-                            ? styles.actionBtnTextOwned
-                            : canAfford
-                              ? styles.actionBtnTextBuy
-                              : styles.actionBtnTextLocked,
+                        styles.actionBtn,
+                        equipped ? styles.actionBtnEquipped : styles.actionBtnOwned,
                       ]}
+                      onPress={() => handleEquip(item)}
+                      activeOpacity={0.8}
                     >
-                      {equipped
-                        ? 'Equipped'
-                        : isOwned
-                          ? 'Equip'
-                          : canAfford
-                            ? `🍯 ${item.price} Unlock`
-                            : `🔒 Preview (${item.price} 🍯)`}
-                    </Text>
-                  </View>
+                      <Text
+                        style={[
+                          styles.actionBtnText,
+                          equipped ? styles.actionBtnTextEquipped : styles.actionBtnTextOwned,
+                        ]}
+                      >
+                        {equipped ? '✓ Equipped' : 'Equip'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : isPreviewing ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.actionBtn,
+                        canAfford ? styles.actionBtnBuy : styles.actionBtnLocked,
+                      ]}
+                      onPress={() => handleUnlock(item)}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[
+                          styles.actionBtnText,
+                          canAfford ? styles.actionBtnTextBuy : styles.actionBtnTextLocked,
+                        ]}
+                      >
+                        {canAfford ? `🍯 ${item.price} Unlock` : `🔒 Need ${item.price - spendableHoney} 🍯`}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.actionBtnPreview]}
+                      onPress={() => handlePreview(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.actionBtnText, styles.actionBtnTextPreview]}>
+                        👀 Try On
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -649,6 +743,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
     borderColor: '#CBD5E1',
   },
+  priceTagPreviewing: {
+    borderColor: '#6366F1',
+    backgroundColor: '#EEF2FF',
+  },
   priceTagText: {
     color: '#92400E',
     fontSize: 12,
@@ -693,6 +791,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
     borderBottomColor: '#CBD5E1',
   },
+  actionBtnPreview: {
+    backgroundColor: '#EEF2FF',
+    borderBottomColor: '#C7D2FE',
+  },
   actionBtnText: {
     fontSize: 12,
     fontWeight: '900',
@@ -708,5 +810,25 @@ const styles = StyleSheet.create({
   },
   actionBtnTextLocked: {
     color: '#475569',
+  },
+  actionBtnTextPreview: {
+    color: '#4F46E5',
+  },
+  stageUnlockBtn: {
+    backgroundColor: '#F59E0B',
+    borderWidth: 1.5,
+    borderColor: '#B45309',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  stageUnlockBtnDisabled: {
+    backgroundColor: '#94A3B8',
+    borderColor: '#64748B',
+  },
+  stageUnlockBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
   },
 });
