@@ -231,6 +231,14 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
             <Text style={styles.primaryBtnText}>Return to Bee Hive Home</Text>
           </TouchableOpacity>
         </View>
+
+        <View style={[styles.adBannerContainer, { width: '100%', maxWidth: 620, marginTop: 16 }]}>
+          <View style={styles.adBadgePill}>
+            <Text style={styles.adBadgeText}>AD</Text>
+          </View>
+          <Text style={styles.adBannerTitle}>Google AdMob Banner (Kids Safe • G-Rated)</Text>
+          <Text style={styles.adBannerSub}>Non-personalized family-safe ad space</Text>
+        </View>
       </ScrollView>
     );
   }
@@ -321,15 +329,6 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
               >
                 <Text style={styles.attemptTriggerText}>✏️ Attempt</Text>
               </TouchableOpacity>
-            </View>
-
-            {/* Google Ad Banner Slot (Bottom of Stage 1 as sketched) */}
-            <View style={styles.adBannerContainer}>
-              <View style={styles.adBadgePill}>
-                <Text style={styles.adBadgeText}>AD</Text>
-              </View>
-              <Text style={styles.adBannerTitle}>Google AdMob Banner (Kids Safe • G-Rated)</Text>
-              <Text style={styles.adBannerSub}>Non-personalized family-safe ad space</Text>
             </View>
           </>
         )}
@@ -571,6 +570,17 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
                 {currentIndex + 1 < words.length ? 'Next Word ▸' : 'See Round Results 🏆'}
               </Text>
             </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Google Ad Banner Slot (Shown on Initial Screen & Post-Answer Result Screen) */}
+        {(!isAttempting || submitted) && (
+          <View style={styles.adBannerContainer}>
+            <View style={styles.adBadgePill}>
+              <Text style={styles.adBadgeText}>AD</Text>
+            </View>
+            <Text style={styles.adBannerTitle}>Google AdMob Banner (Kids Safe • G-Rated)</Text>
+            <Text style={styles.adBannerSub}>Non-personalized family-safe ad space</Text>
           </View>
         )}
       </ScrollView>
