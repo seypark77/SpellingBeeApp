@@ -215,12 +215,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         >
           <View style={styles.reviewBannerLeft}>
             <Text style={styles.reviewBannerEmoji}>🎯</Text>
-            <View>
-              <Text style={styles.reviewBannerTitle}>
-                {activeWrongWordsCount} Tricky {activeWrongWordsCount === 1 ? 'Word' : 'Words'}
-              </Text>
-              <Text style={styles.reviewBannerSub}>Practice & Master Your Mistakes</Text>
-            </View>
+            <Text style={styles.reviewBannerTitle}>
+              {activeWrongWordsCount} Tricky {activeWrongWordsCount === 1 ? 'Word' : 'Words'}
+            </Text>
           </View>
           <View style={styles.reviewPlayCircle}>
             <Text style={styles.reviewPlayIcon}>▶</Text>
@@ -228,7 +225,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </TouchableOpacity>
       )}
 
-      {/* Chunky Duolingo-Style Level Cards */}
+      {/* Compact Duolingo-Style Level Cards */}
       {LEVEL_CARDS.map((card) => {
         const stats = getLevelStats(card.level);
         const pct = Math.round((stats.mastered / stats.total) * 100);
@@ -249,7 +246,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <View style={styles.levelCardTop}>
               <View style={styles.levelLeft}>
                 <Text style={styles.levelBees}>{card.bees}</Text>
-                <View>
+                <View style={styles.levelTitleRow}>
                   <Text style={styles.levelTitle}>{card.title}</Text>
                   <View style={[styles.gradePill, { backgroundColor: card.accentColor }]}>
                     <Text style={styles.gradePillText}>{card.grade}</Text>
@@ -301,7 +298,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <View style={styles.levelCardTop}>
           <View style={styles.levelLeft}>
             <Text style={styles.allWordsTrophy}>🏆</Text>
-            <View>
+            <View style={styles.levelTitleRow}>
               <Text style={styles.allWordsTitle}>All 450</Text>
               <Text style={styles.allWordsCount}>✅ {allStats.mastered}/450</Text>
             </View>
@@ -786,108 +783,108 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#FEF2F2',
     borderWidth: 2,
-    borderBottomWidth: 5,
+    borderBottomWidth: 4,
     borderColor: '#EF4444',
     borderBottomColor: '#B91C1C',
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    marginBottom: 16
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 10
   },
   reviewBannerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 10,
     flex: 1
   },
   reviewBannerEmoji: {
-    fontSize: 36
+    fontSize: 26
   },
   reviewBannerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
     color: '#991B1B'
   },
-  reviewBannerSub: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#DC2626',
-    marginTop: 2
-  },
   reviewPlayCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 13,
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
-    borderBottomWidth: 4,
+    borderBottomWidth: 3,
     borderBottomColor: '#991B1B'
   },
   reviewPlayIcon: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: '900'
   },
   levelCard: {
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 14,
-    borderWidth: 2.5,
-    borderBottomWidth: 6
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderBottomWidth: 4
   },
   levelCardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14
+    marginBottom: 8
   },
   levelLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14
+    gap: 10,
+    flex: 1
+  },
+  levelTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap'
   },
   levelBees: {
-    fontSize: 32
+    fontSize: 24
   },
   levelTitle: {
-    fontSize: 24,
+    fontSize: 19,
     fontWeight: '900',
-    color: '#0F172A',
-    marginBottom: 4
+    color: '#0F172A'
   },
   gradePill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
     borderRadius: 999
   },
   gradePillText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900'
   },
   playCircleBtn: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 13,
     justifyContent: 'center',
     alignItems: 'center',
-    borderBottomWidth: 4
+    borderBottomWidth: 3
   },
   playCircleIcon: {
     color: '#FFFFFF',
-    fontSize: 24,
+    fontSize: 17,
     fontWeight: '900'
   },
   levelProgressSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12
+    gap: 10
   },
   levelBarBg: {
     flex: 1,
-    height: 14,
+    height: 10,
     backgroundColor: 'rgba(15, 23, 42, 0.12)',
     borderRadius: 999,
     overflow: 'hidden'
@@ -899,59 +896,59 @@ const styles = StyleSheet.create({
   levelProgressLabels: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 6
   },
   levelProgressText: {
-    fontSize: 14,
+    fontSize: 12.5,
     fontWeight: '900',
     color: '#334155'
   },
   levelNeedsReviewText: {
-    fontSize: 14,
+    fontSize: 12.5,
     fontWeight: '900',
     color: '#DC2626'
   },
   allWordsCard: {
     backgroundColor: '#0F172A',
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 20,
-    borderWidth: 2.5,
-    borderBottomWidth: 6,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    marginBottom: 14,
+    borderWidth: 2,
+    borderBottomWidth: 4,
     borderColor: '#FFC72C',
     borderBottomColor: '#D97706'
   },
   allWordsTrophy: {
-    fontSize: 38
+    fontSize: 26
   },
   allWordsTitle: {
-    fontSize: 24,
+    fontSize: 19,
     fontWeight: '900',
     color: '#FFFFFF'
   },
   allWordsCount: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#FDE68A',
-    marginTop: 2
+    color: '#FDE68A'
   },
   allWordsPlayBtn: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 13,
     backgroundColor: '#FFC72C',
     justifyContent: 'center',
     alignItems: 'center',
-    borderBottomWidth: 4,
+    borderBottomWidth: 3,
     borderBottomColor: '#D97706'
   },
   allWordsPlayIcon: {
-    fontSize: 24,
+    fontSize: 17,
     fontWeight: '900',
     color: '#0F172A'
   },
   allWordsBarBg: {
-    height: 12,
+    height: 10,
     backgroundColor: '#334155',
     borderRadius: 999,
     overflow: 'hidden'
