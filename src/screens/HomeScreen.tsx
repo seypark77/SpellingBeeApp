@@ -626,19 +626,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </View>
       </Modal>
       </ScrollView>
-
-      {/* Sticky Bottom Google AdMob Banner (Anchored above Bottom Tab Bar) */}
-      <View style={styles.stickyAdBar}>
-        <View style={styles.stickyAdInner}>
-          <View style={styles.adBadgePill}>
-            <Text style={styles.adBadgeText}>AD</Text>
-          </View>
-          <View style={styles.stickyAdTextCol}>
-            <Text style={styles.stickyAdTitle}>Google AdMob Banner (Kids Safe • G-Rated)</Text>
-            <Text style={styles.stickyAdSub}>Non-personalized family-safe ad space</Text>
-          </View>
-        </View>
-      </View>
     </View>
   );
 };
