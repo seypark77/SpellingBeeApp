@@ -149,7 +149,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const allPct = Math.round((allStats.mastered / Math.max(1, allStats.total)) * 100);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.outerWrap}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Duolingo-Style Character Showcase & Rank Progress Card */}
       <View style={styles.heroCard}>
         <View style={styles.characterHeroRow}>
@@ -627,21 +628,88 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </View>
         </View>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+
+      {/* Sticky Bottom Google AdMob Banner (Anchored above Bottom Tab Bar) */}
+      <View style={styles.stickyAdBar}>
+        <View style={styles.stickyAdInner}>
+          <View style={styles.adBadgePill}>
+            <Text style={styles.adBadgeText}>AD</Text>
+          </View>
+          <View style={styles.stickyAdTextCol}>
+            <Text style={styles.stickyAdTitle}>Google AdMob Banner (Kids Safe • G-Rated)</Text>
+            <Text style={styles.stickyAdSub}>Non-personalized family-safe ad space</Text>
+          </View>
+        </View>
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  outerWrap: {
+    flex: 1,
+    backgroundColor: '#FFFDF7'
+  },
   container: {
     flex: 1,
     backgroundColor: '#FFFDF7'
   },
   content: {
     padding: 16,
-    paddingBottom: 36,
+    paddingBottom: 24,
     maxWidth: 720,
     width: '100%',
     alignSelf: 'center'
+  },
+  stickyAdBar: {
+    backgroundColor: '#F8FAFC',
+    borderTopWidth: 1.5,
+    borderTopColor: '#CBD5E1',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  stickyAdInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    maxWidth: 680,
+    width: '100%',
+    gap: 10
+  },
+  adBadgePill: {
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6
+  },
+  adBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#64748B',
+    letterSpacing: 0.8
+  },
+  stickyAdTextCol: {
+    alignItems: 'flex-start'
+  },
+  stickyAdTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#475569'
+  },
+  stickyAdSub: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#94A3B8'
   },
   heroCard: {
     backgroundColor: '#0F172A',
