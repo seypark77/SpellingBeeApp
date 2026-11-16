@@ -1,16 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Keyboard,
   Linking,
   Modal,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
 import { ConfettiBurst } from '../components/ConfettiBurst';
-import { SpellingKeypad } from '../components/SpellingKeypad';
-import { VoiceSpellerModal } from '../components/VoiceSpellerModal';
 import { BADGES, checkSpellingAnswer, computeLetterDiff } from '../utils/spellingUtils';
 import {
   playCorrectSound,
@@ -57,7 +57,8 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [typedSpelling, setTypedSpelling] = useState('');
   const [usedVoiceForCurrent, setUsedVoiceForCurrent] = useState(false);
-  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const [isAttempting, setIsAttempting] = useState(false);
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   // Pop-up modal for Definition / Use in a Sentence / Hint (none selected by default)
   const [activeClueModal, setActiveClueModal] = useState<ClueModalType>(null);
@@ -81,6 +82,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
     if (currentWord && !sessionFinished) {
       setTypedSpelling('');
       setUsedVoiceForCurrent(false);
+      setIsAttempting(false);
       setActiveClueModal(null);
       setSubmitted(false);
       setIsCorrect(false);
@@ -113,6 +115,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
     const answerToCheck = overrideSpelling !== undefined ? overrideSpelling : typedSpelling;
     if (!answerToCheck.trim()) return;
 
+    Keyboard.dismiss();
     const voiceUsed = fromVoice || usedVoiceForCurrent;
     const check = checkSpellingAnswer(answerToCheck, currentWord);
     setSubmitted(true);
@@ -264,100 +267,205 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Main Pronouncer Audio Controls */}
-        <View style={styles.pronouncerCard}>
-          <View style={styles.audioButtonsRow}>
-            <TouchableOpacity
-              style={styles.hearMainBtn}
-              onPress={() => speakWord(currentWord, false)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.hearMainEmoji}>🔊</Text>
-              <Text style={styles.hearMainTitle}>Hear Word</Text>
-            </TouchableOpacity>
+        {/* STAGE 1: Initial Prompt Card (Before clicking Attempt) */}
+        {!isAttempting && !submitted && (
+          <>
+            <View style={styles.pronouncerCard}>
+              <TouchableOpacity
+                style={styles.hearSingleMainBtn}
+                onPress={() => speakWord(currentWord, false)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.hearMainEmoji}>🔊</Text>
+                <Text style={styles.hearMainTitle}>Hear Word</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.hearSlowBtn}
-              onPress={() => speakWord(currentWord, true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.hearSlowEmoji}>🐢</Text>
-              <Text style={styles.hearSlowTitle}>Slow</Text>
-            </TouchableOpacity>
+              {/* 3 Clue Buttons Row: Definition / Sentence / Hint */}
+              <View style={styles.cluePillsRow}>
+                <TouchableOpacity
+                  style={styles.cluePill}
+                  onPress={() => setActiveClueModal('definition')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.cluePillText}>📘 Definition</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.voiceInputTriggerBtn}
-              onPress={() => setVoiceModalOpen(true)}
-              disabled={submitted}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.voiceTriggerEmoji}>🎤</Text>
-              <Text style={styles.voiceTriggerTitle}>Voice</Text>
-            </TouchableOpacity>
-          </View>
+                <TouchableOpacity
+                  style={styles.cluePill}
+                  onPress={() => setActiveClueModal('sentence')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.cluePillText}>💬 Sentence</Text>
+                </TouchableOpacity>
 
-          {/* Clue Trigger Buttons (Open Pop-up Modal on Tap) */}
-          <View style={styles.cluePillsRow}>
-            <TouchableOpacity
-              style={styles.cluePill}
-              onPress={() => setActiveClueModal('definition')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.cluePillText}>📘 Definition</Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.cluePill}
+                  onPress={() => setActiveClueModal('hint')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.cluePillText}>💡 Hint</Text>
+                </TouchableOpacity>
+              </View>
 
-            <TouchableOpacity
-              style={styles.cluePill}
-              onPress={() => setActiveClueModal('sentence')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.cluePillText}>💬 Use in a Sentence</Text>
-            </TouchableOpacity>
+              {/* Attempt Button */}
+              <TouchableOpacity
+                style={styles.attemptTriggerBtn}
+                onPress={() => {
+                  triggerHaptic('light');
+                  setIsAttempting(true);
+                  setTimeout(() => {
+                    inputRef.current?.focus();
+                  }, 100);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.attemptTriggerText}>✏️ Attempt</Text>
+              </TouchableOpacity>
+            </View>
 
-            <TouchableOpacity
-              style={styles.cluePill}
-              onPress={() => setActiveClueModal('hint')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.cluePillText}>💡 Hint</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+            {/* Google Ad Banner Slot (Bottom of Stage 1 as sketched) */}
+            <View style={styles.adBannerContainer}>
+              <View style={styles.adBadgePill}>
+                <Text style={styles.adBadgeText}>AD</Text>
+              </View>
+              <Text style={styles.adBannerTitle}>Google AdMob Banner (Kids Safe • G-Rated)</Text>
+              <Text style={styles.adBannerSub}>Non-personalized family-safe ad space</Text>
+            </View>
+          </>
+        )}
 
-        {/* Speller Input Display Box */}
-        <View
-          style={[
-            styles.spellingDisplayCard,
-            submitted && (isCorrect ? styles.displayCardCorrect : styles.displayCardWrong)
-          ]}
-        >
-          <View style={styles.displayTopRow}>
-            <Text style={styles.displayLabel}>
-              {usedVoiceForCurrent ? '🎤 VOICE SPELLING:' : '✋ YOUR SPELLING:'}
-            </Text>
-            {typedSpelling.length > 0 && !submitted && (
-              <TouchableOpacity onPress={() => speakLettersOutLoud(typedSpelling)}>
+        {/* STAGE 2: Native Keyboard Input Mode (After clicking Attempt) */}
+        {isAttempting && !submitted && (
+          <View style={styles.nativeInputCard}>
+            <View style={styles.nativeInputHeaderRow}>
+              <Text style={styles.nativeInputPrompt}>
+                Type on the keyboard or tap 🎙️
+              </Text>
+              <TouchableOpacity
+                style={styles.backToCluesBtn}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setIsAttempting(false);
+                }}
+              >
+                <Text style={styles.backToCluesText}>← Back</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.nativeTextInputWrap}>
+              <TextInput
+                ref={inputRef}
+                style={styles.nativeTextInput}
+                value={typedSpelling}
+                onChangeText={setTypedSpelling}
+                placeholder="Type here or tap 🎙️ on keyboard..."
+                placeholderTextColor="#94A3B8"
+                autoFocus
+                autoCorrect={false}
+                spellCheck={false}
+                autoCapitalize="none"
+                autoComplete="off"
+                returnKeyType="done"
+                onSubmitEditing={() => handleCheckAnswer()}
+              />
+              {typedSpelling.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearInputBtn}
+                  onPress={() => setTypedSpelling('')}
+                >
+                  <Text style={styles.clearInputBtnText}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {typedSpelling.length > 0 && (
+              <TouchableOpacity
+                style={styles.hearMyLettersRow}
+                onPress={() => speakLettersOutLoud(typedSpelling)}
+              >
                 <Text style={styles.hearLettersLink}>🔊 Hear My Letters</Text>
               </TouchableOpacity>
             )}
-          </View>
 
-          <View style={styles.letterBoxesWrap}>
-            {typedSpelling.length > 0 ? (
-              typedSpelling.split('').map((ch, idx) => (
+            {/* Hear Word button right below input box (as in sketch) + Submit button */}
+            <View style={styles.inputModeActionsRow}>
+              <TouchableOpacity
+                style={styles.hearInInputModeBtn}
+                onPress={() => speakWord(currentWord, false)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.hearMainEmoji}>🔊</Text>
+                <Text style={styles.hearMainTitle}>Hear Word</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.submitNativeBtn,
+                  !typedSpelling.trim() && styles.submitNativeBtnDisabled
+                ]}
+                onPress={() => handleCheckAnswer()}
+                disabled={!typedSpelling.trim()}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.submitNativeBtnText}>Submit ✓</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Clues Row while in Input Mode */}
+            <View style={[styles.cluePillsRow, { marginTop: 12 }]}>
+              <TouchableOpacity
+                style={styles.cluePill}
+                onPress={() => setActiveClueModal('definition')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.cluePillText}>📘 Definition</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.cluePill}
+                onPress={() => setActiveClueModal('sentence')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.cluePillText}>💬 Sentence</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.cluePill}
+                onPress={() => setActiveClueModal('hint')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.cluePillText}>💡 Hint</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* STAGE 3: Post-Submission Display & Feedback */}
+        {submitted && (
+          <View
+            style={[
+              styles.spellingDisplayCard,
+              isCorrect ? styles.displayCardCorrect : styles.displayCardWrong
+            ]}
+          >
+            <View style={styles.displayTopRow}>
+              <Text style={styles.displayLabel}>✋ YOUR SPELLING:</Text>
+              <TouchableOpacity onPress={() => speakWord(currentWord, false)}>
+                <Text style={styles.hearLettersLink}>🔊 Hear Word</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.letterBoxesWrap}>
+              {typedSpelling.split('').map((ch, idx) => (
                 <View key={idx} style={styles.typedTile}>
                   <Text style={styles.typedTileText}>
                     {ch === ' ' ? '␣' : ch.toUpperCase()}
                   </Text>
                 </View>
-              ))
-            ) : (
-              <Text style={styles.placeholderText}>
-                Type on the keypad below or tap 🎤 Voice...
-              </Text>
-            )}
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Post-Submission Feedback Card */}
         {submitted && (
@@ -464,18 +572,6 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
               </Text>
             </TouchableOpacity>
           </View>
-        )}
-
-        {/* Custom Anti-Cheat Keypad (Hidden once submitted so Post-Submission card is front and center) */}
-        {!submitted && (
-          <SpellingKeypad
-            value={typedSpelling}
-            onChange={(val) => {
-              setTypedSpelling(val);
-            }}
-            onSubmit={() => handleCheckAnswer()}
-            disabled={submitted}
-          />
         )}
       </ScrollView>
 
@@ -588,22 +684,6 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
           </View>
         </View>
       </Modal>
-
-      {/* Voice Speller Modal */}
-      <VoiceSpellerModal
-        visible={voiceModalOpen}
-        wordEntry={currentWord}
-        initialSpelling={typedSpelling}
-        onClose={() => setVoiceModalOpen(false)}
-        onApplySpelling={(spelled, submitNow) => {
-          setVoiceModalOpen(false);
-          setTypedSpelling(spelled);
-          setUsedVoiceForCurrent(true);
-          if (submitNow) {
-            handleCheckAnswer(spelled, true);
-          }
-        }}
-      />
     </View>
   );
 };
@@ -675,77 +755,189 @@ const styles = StyleSheet.create({
   },
   pronouncerCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 14,
+    borderRadius: 22,
+    padding: 18,
     borderWidth: 2,
     borderColor: '#FDE68A',
-    marginBottom: 12
+    marginBottom: 16
   },
-  audioButtonsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12
-  },
-  hearMainBtn: {
-    flex: 1.35,
+  hearSingleMainBtn: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFC72C',
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderBottomWidth: 4,
+    borderBottomColor: '#D97706',
+    marginBottom: 14
+  },
+  hearMainEmoji: {
+    fontSize: 24,
+    marginRight: 8
+  },
+  hearMainTitle: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#0F172A'
+  },
+  attemptTriggerBtn: {
+    width: '100%',
+    backgroundColor: '#0F172A',
+    paddingVertical: 18,
+    borderRadius: 16,
+    borderBottomWidth: 4,
+    borderBottomColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14
+  },
+  attemptTriggerText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#FFC72C',
+    letterSpacing: 0.5
+  },
+  adBannerContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8
+  },
+  adBadgePill: {
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 4
+  },
+  adBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#64748B',
+    letterSpacing: 0.8
+  },
+  adBannerTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#475569'
+  },
+  adBannerSub: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94A3B8',
+    marginTop: 2
+  },
+  nativeInputCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 18,
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+    marginBottom: 12
+  },
+  nativeInputHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12
+  },
+  nativeInputPrompt: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A'
+  },
+  backToCluesBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8
+  },
+  backToCluesText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#475569'
+  },
+  nativeTextInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 2.5,
+    borderColor: '#F59E0B',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    marginBottom: 10
+  },
+  nativeTextInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0F172A',
     paddingVertical: 14,
+    letterSpacing: 1
+  },
+  clearInputBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FDE68A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8
+  },
+  clearInputBtnText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#92400E'
+  },
+  hearMyLettersRow: {
+    alignSelf: 'flex-end',
+    marginBottom: 10
+  },
+  inputModeActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4
+  },
+  hearInInputModeBtn: {
+    flex: 1.15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFC72C',
+    paddingVertical: 15,
     paddingHorizontal: 12,
     borderRadius: 14,
     borderBottomWidth: 3,
     borderBottomColor: '#D97706'
   },
-  hearMainEmoji: {
-    fontSize: 22,
-    marginRight: 6
-  },
-  hearMainTitle: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#0F172A'
-  },
-  hearSlowBtn: {
+  submitNativeBtn: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingVertical: 14,
-    paddingHorizontal: 10,
+    backgroundColor: '#10B981',
+    paddingVertical: 15,
+    paddingHorizontal: 12,
     borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#F59E0B'
+    borderBottomWidth: 3,
+    borderBottomColor: '#059669'
   },
-  hearSlowEmoji: {
-    fontSize: 20,
-    marginRight: 6
+  submitNativeBtnDisabled: {
+    backgroundColor: '#CBD5E1',
+    borderBottomColor: '#94A3B8'
   },
-  hearSlowTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#92400E'
-  },
-  voiceInputTriggerBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0F172A',
-    paddingVertical: 14,
-    paddingHorizontal: 10,
-    borderRadius: 14
-  },
-  voiceTriggerEmoji: {
-    fontSize: 20,
-    marginRight: 6
-  },
-  voiceTriggerTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFC72C'
+  submitNativeBtnText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF'
   },
   cluePillsRow: {
     flexDirection: 'row',
