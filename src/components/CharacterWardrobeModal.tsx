@@ -28,6 +28,7 @@ import {
   normalizeCustomization,
 } from '../utils/characterShopData';
 import { playCorrectSound, triggerHaptic } from '../utils/speechUtils';
+import { AdBanner } from './AdBanner';
 import { CharacterAvatar } from './CharacterAvatar';
 
 interface CharacterWardrobeModalProps {
@@ -486,6 +487,9 @@ export const CharacterWardrobeModal: React.FC<CharacterWardrobeModalProps> = ({
             })}
           </View>
         </ScrollView>
+
+        {/* Sticky Bottom Google AdMob Banner */}
+        <AdBanner variant="sticky" />
       </SafeAreaView>
     </Modal>
   );
