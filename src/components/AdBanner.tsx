@@ -1,37 +1,114 @@
-import React from 'react';
-import { StyleSheet, Text, View, ViewStyle } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Platform, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import mobileAds, {
+  BannerAd,
+  BannerAdSize,
+  MaxAdContentRating,
+  TestIds,
+} from 'react-native-google-mobile-ads';
 
 interface AdBannerProps {
   variant?: 'sticky' | 'card';
   style?: ViewStyle;
 }
 
+let isAdMobConfigured = false;
+
 /**
- * Centralized COPPA / Kids-Category Safe Google AdMob Banner slot.
- * - In development (__DEV__), renders a visible layout preview banner so placement can be verified.
- * - In production builds without a live AdMob SDK configured yet, hides the placeholder cleanly
- *   so App Store / Google Play reviewers never see a mock ad box.
+ * Configure AdMob globally with strict COPPA / Kids Category compliance:
+ * - MaxAdContentRating.G: Only G-rated (General audience / all ages) ads
+ * - tagForChildDirectedTreatment: true (COPPA compliant)
+ * - tagForUnderAgeOfConsent: true (GDPR-K / under age of consent compliant)
+ */
+export function configureAdMob() {
+  if (isAdMobConfigured || Platform.OS === 'web') return;
+  try {
+    mobileAds()
+      .setRequestConfiguration({
+        maxAdContentRating: MaxAdContentRating.G,
+        tagForChildDirectedTreatment: true,
+        tagForUnderAgeOfConsent: true,
+      })
+      .then(() => mobileAds().initialize())
+      .then(() => {
+        isAdMobConfigured = true;
+      })
+      .catch((err) => {
+        console.warn('AdMob configuration warning:', err);
+      });
+  } catch (err) {
+    console.log('AdMob native module not available in this environment (e.g. Expo Go or Web)');
+  }
+}
+
+/**
+ * Official Google AdMob Test Banner Component
+ * Uses Google's official Test Unit ID (TestIds.BANNER)
+ * Displays live Google test ads on iOS/Android native builds,
+ * and falls back cleanly on Web or Expo Go without crashing.
  */
 export const AdBanner: React.FC<AdBannerProps> = ({ variant = 'card', style }) => {
-  // When react-native-google-mobile-ads is installed & configured with your production Ad Unit ID,
-  // replace this return block with <BannerAd unitId={...} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-  // requestOptions={{ requestNonPersonalizedAdsOnly: true }} />.
-  if (!__DEV__) {
-    return null;
+  const [adLoaded, setAdLoaded] = useState(false);
+  const [adError, setAdError] = useState<string | null>(null);
+
+  useEffect(() => {
+    configureAdMob();
+  }, []);
+
+  // Web environment fallback
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[variant === 'sticky' ? styles.stickyAdBar : styles.cardAdContainer, style]}>
+        <View style={styles.adBadgePill}>
+          <Text style={styles.adBadgeText}>GOOGLE TEST AD (WEB)</Text>
+        </View>
+        <Text style={styles.cardAdTitle}>Google AdMob Test Banner</Text>
+        <Text style={styles.cardAdSub}>Unit ID: {TestIds.BANNER} (320x50)</Text>
+      </View>
+    );
   }
+
+  // If the test ad failed to load (e.g. in Expo Go without native build, or offline)
+  if (adError) {
+    if (!__DEV__) return null;
+    return (
+      <View style={[variant === 'sticky' ? styles.stickyAdBar : styles.cardAdContainer, style]}>
+        <View style={styles.adBadgePill}>
+          <Text style={styles.adBadgeText}>TEST AD (EXPO GO / DEV)</Text>
+        </View>
+        <Text style={styles.cardAdTitle}>Google AdMob Test Banner Slot</Text>
+        <Text style={styles.cardAdSub}>Test ID: {TestIds.BANNER} (Ready for Native Dev Build)</Text>
+      </View>
+    );
+  }
+
+  const banner = (
+    <View style={styles.bannerCenterWrap}>
+      <BannerAd
+        unitId={TestIds.BANNER}
+        size={BannerAdSize.BANNER}
+        requestOptions={{
+          requestNonPersonalizedAdsOnly: true,
+        }}
+        onAdLoaded={() => {
+          setAdLoaded(true);
+          setAdError(null);
+        }}
+        onAdFailedToLoad={(error) => {
+          console.warn('AdMob test ad load error:', error);
+          setAdError(error?.message || 'Failed to load');
+        }}
+      />
+    </View>
+  );
 
   if (variant === 'sticky') {
     return (
       <View style={[styles.stickyAdBar, style]}>
-        <View style={styles.stickyAdInner}>
-          <View style={styles.adBadgePill}>
-            <Text style={styles.adBadgeText}>AD</Text>
-          </View>
-          <View style={styles.stickyAdTextCol}>
-            <Text style={styles.stickyAdTitle}>Google AdMob Banner (Kids Safe • G-Rated)</Text>
-            <Text style={styles.stickyAdSub}>Non-personalized family-safe ad space</Text>
-          </View>
+        <View style={styles.adBadgePill}>
+          <Text style={styles.adBadgeText}>GOOGLE TEST AD</Text>
         </View>
+        {banner}
       </View>
     );
   }
@@ -39,10 +116,9 @@ export const AdBanner: React.FC<AdBannerProps> = ({ variant = 'card', style }) =
   return (
     <View style={[styles.cardAdContainer, style]}>
       <View style={styles.adBadgePill}>
-        <Text style={styles.adBadgeText}>AD</Text>
+        <Text style={styles.adBadgeText}>GOOGLE TEST AD</Text>
       </View>
-      <Text style={styles.cardAdTitle}>Google AdMob Banner (Kids Safe • G-Rated)</Text>
-      <Text style={styles.cardAdSub}>Non-personalized family-safe ad space</Text>
+      {banner}
     </View>
   );
 };
@@ -52,30 +128,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderTopWidth: 1.5,
     borderTopColor: '#CBD5E1',
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  stickyAdInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+  cardAdContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
     borderWidth: 1.5,
     borderColor: '#CBD5E1',
-    borderRadius: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    maxWidth: 680,
-    width: '100%',
-    gap: 10
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10
+  },
+  bannerCenterWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+    marginTop: 4
   },
   adBadgePill: {
     backgroundColor: '#E2E8F0',
     paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 4
   },
   adBadgeText: {
     fontSize: 10,
@@ -83,35 +163,11 @@ const styles = StyleSheet.create({
     color: '#64748B',
     letterSpacing: 0.8
   },
-  stickyAdTextCol: {
-    alignItems: 'flex-start'
-  },
-  stickyAdTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#475569'
-  },
-  stickyAdSub: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#94A3B8'
-  },
-  cardAdContainer: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10
-  },
   cardAdTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#475569',
-    marginTop: 4
+    marginTop: 2
   },
   cardAdSub: {
     fontSize: 11,

@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { AdBanner } from './src/components/AdBanner';
+import { AdBanner, configureAdMob } from './src/components/AdBanner';
 import { CharacterAvatar } from './src/components/CharacterAvatar';
 import { ProfileModal } from './src/components/ProfileModal';
 import {
@@ -81,6 +81,7 @@ export default function App() {
     (async () => {
       try {
         await configureAudioSession();
+        configureAdMob();
         await initDatabase();
         const words = await getAllWordsFromDb();
         if (cancelled) return;
