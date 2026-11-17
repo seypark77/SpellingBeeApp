@@ -9,3 +9,5 @@ web-build/
 *.mobileprovision
 *.orig.*
 *.log
+scripts/piper_voices/
+scripts/__pycache__/

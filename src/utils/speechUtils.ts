@@ -1,6 +1,7 @@
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
+import { WORD_AUDIO_ASSETS } from './wordAudioMap';
 
 const CORRECT_CHIME_ASSET = require('../../assets/sounds/correct.wav');
 let chimeAudioPlayer: any = null;
@@ -128,15 +129,19 @@ export async function resetAudioAfterRecording(): Promise<void> {
   }
 }
 
-async function playRemoteMp3Url(url: string, slow: boolean): Promise<boolean> {
-  if (!url) return false;
+async function playBundledWordAsset(asset: any, slow: boolean): Promise<boolean> {
+  if (!asset) return false;
 
   if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof Audio !== 'undefined') {
     try {
       await stopSpeaking();
-      const audio = new Audio();
-      (audio as any).referrerPolicy = 'no-referrer';
-      audio.src = url;
+      const { Asset } = require('expo-asset');
+      const resolvedUri =
+        typeof asset === 'string'
+          ? asset
+          : Asset.fromModule(asset).uri || Asset.fromModule(asset).localUri;
+      if (!resolvedUri) return false;
+      const audio = new Audio(resolvedUri);
       webAudioElement = audio;
       audio.playbackRate = slow ? 0.65 : 1.0;
       await audio.play();
@@ -161,10 +166,9 @@ async function playRemoteMp3Url(url: string, slow: boolean): Promise<boolean> {
         nativeAudioPlayer = null;
       }
 
-      nativeAudioPlayer = ExpoAudio.createAudioPlayer(
-        { uri: url },
-        { keepAudioSessionActive: true }
-      );
+      nativeAudioPlayer = ExpoAudio.createAudioPlayer(asset, {
+        keepAudioSessionActive: true
+      });
       nativeAudioPlayer.volume = 1.0;
       if (typeof nativeAudioPlayer.setPlaybackRate === 'function') {
         try {
@@ -177,14 +181,14 @@ async function playRemoteMp3Url(url: string, slow: boolean): Promise<boolean> {
       return true;
     }
   } catch (err) {
-    console.warn('Remote MP3 playback error:', err);
+    console.warn('Bundled word MP3 playback error:', err);
   }
   return false;
 }
 
 /**
- * Speaks the target word using high-quality Neural AI US English MP3
- * (with automatic fallback to secondary Neural stream and offline OS TTS).
+ * Speaks the target word using the bundled offline MP3 asset in assets/audio/words/<id>.mp3
+ * (with automatic fallback to offline OS-native US English TTS).
  */
 export async function speakWord(
   entry: { id?: number; word: string; definition?: string; audioUrl?: string },
@@ -192,6 +196,15 @@ export async function speakWord(
 ): Promise<void> {
   if (!entry || !entry.word) return;
 
+  // 1. Primary: Bundled offline Piper Neural US English MP3 asset
+  if (entry.id && WORD_AUDIO_ASSETS[entry.id]) {
+    const playedBundled = await playBundledWordAsset(WORD_AUDIO_ASSETS[entry.id], slow);
+    if (playedBundled) {
+      return;
+    }
+  }
+
+  // 2. Fallback: Offline OS-native US English TTS
   let spokenWord = entry.word.trim();
   if (entry.id && TTS_PHONETIC_OVERRIDES_BY_ID[entry.id]) {
     spokenWord = TTS_PHONETIC_OVERRIDES_BY_ID[entry.id];
@@ -201,27 +214,6 @@ export async function speakWord(
   ) {
     spokenWord = 'led';
   }
-
-  // 1. Primary: Google US English Neural TTS MP3
-  const speedParam = slow ? '0.24' : '1';
-  const googleNeuralUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=en-US&ttsspeed=${speedParam}&q=${encodeURIComponent(
-    spokenWord
-  )}&ext=.mp3`;
-  const playedGoogle = await playRemoteMp3Url(googleNeuralUrl, slow);
-  if (playedGoogle) {
-    return;
-  }
-
-  // 2. Secondary fallback: Youdao US English Neural stream
-  const youdaoNeuralUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(
-    spokenWord
-  )}&type=2&ext=.mp3`;
-  const playedYoudao = await playRemoteMp3Url(youdaoNeuralUrl, slow);
-  if (playedYoudao) {
-    return;
-  }
-
-  // 3. Offline fallback: OS-native US English TTS
   await speakText(spokenWord, slow);
 }
 
