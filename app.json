@@ -14,12 +14,11 @@
     },
     "ios": {
       "supportsTablet": true,
+      "requireFullScreen": true,
       "bundleIdentifier": "com.irene.spellingbeeapp",
       "buildNumber": "1",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSMicrophoneUsageDescription": "Allow BeeReady to listen as you spell words out loud letter by letter.",
-        "NSSpeechRecognitionUsageDescription": "Allow BeeReady to recognize the letters you speak during Spelling Bee practice."
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -31,12 +30,8 @@
       },
       "permissions": [
         "INTERNET",
-        "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -47,25 +42,7 @@
       "expo-sqlite",
       "expo-asset",
       "expo-status-bar",
-      [
-        "expo-audio",
-        {
-          "microphonePermission": "Allow BeeReady to access your microphone so you can spell words out loud."
-        }
-      ],
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "Allow BeeReady to access your microphone so you can spell words out loud.",
-          "speechRecognitionPermission": "Allow BeeReady to recognize the letters you speak during Spelling Bee practice.",
-          "androidSpeechServicePackages": [
-            "com.google.android.googlequicksearchbox",
-            "com.google.android.as",
-            "com.google.android.tts",
-            "com.samsung.android.bixby.agent"
-          ]
-        }
-      ]
+      "expo-audio"
     ],
     "extra": {
       "eas": {

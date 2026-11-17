@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { AdBanner } from './src/components/AdBanner';
 import { CharacterAvatar } from './src/components/CharacterAvatar';
 import { ProfileModal } from './src/components/ProfileModal';
 import {
@@ -76,14 +77,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      await configureAudioSession();
-      await initDatabase();
-      const words = await getAllWordsFromDb();
-      setAllWords(words);
-      await refreshData();
-      setIsReady(true);
+      try {
+        await configureAudioSession();
+        await initDatabase();
+        const words = await getAllWordsFromDb();
+        if (cancelled) return;
+        setAllWords(words);
+        await refreshData();
+      } catch (e) {
+        console.warn('Database initialization error:', e);
+      } finally {
+        if (!cancelled) {
+          setIsReady(true);
+        }
+      }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [refreshData]);
 
   const activeProfile: SpellerProfile =
@@ -323,19 +336,7 @@ export default function App() {
       </View>
 
       {/* Sticky Bottom Google AdMob Banner (Shown on Home, Study List, and Review Tabs) */}
-      {!activeQuiz && (
-        <View style={styles.stickyAdBar}>
-          <View style={styles.stickyAdInner}>
-            <View style={styles.adBadgePill}>
-              <Text style={styles.adBadgeText}>AD</Text>
-            </View>
-            <View style={styles.stickyAdTextCol}>
-              <Text style={styles.stickyAdTitle}>Google AdMob Banner (Kids Safe • G-Rated)</Text>
-              <Text style={styles.stickyAdSub}>Non-personalized family-safe ad space</Text>
-            </View>
-          </View>
-        </View>
-      )}
+      {!activeQuiz && <AdBanner variant="sticky" />}
 
       {/* Duolingo-Style Icon-Only Bottom Navigation Tab Bar */}
       {!activeQuiz && (
@@ -344,6 +345,8 @@ export default function App() {
             style={[styles.tabItem, activeTab === 'home' && styles.tabItemActive]}
             onPress={() => setActiveTab('home')}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Home Tab"
           >
             <Text style={styles.tabIcon}>🏠</Text>
           </TouchableOpacity>
@@ -352,6 +355,8 @@ export default function App() {
             style={[styles.tabItem, activeTab === 'study' && styles.tabItemActive]}
             onPress={() => setActiveTab('study')}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="450 Study Word List Tab"
           >
             <Text style={styles.tabIcon}>📖</Text>
           </TouchableOpacity>
@@ -360,6 +365,8 @@ export default function App() {
             style={[styles.tabItem, activeTab === 'review' && styles.tabItemActive]}
             onPress={() => setActiveTab('review')}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Wrong Words Review Tab"
           >
             <View style={styles.tabIconWrap}>
               <Text style={styles.tabIcon}>🎯</Text>
@@ -375,6 +382,8 @@ export default function App() {
             style={styles.tabItem}
             onPress={() => setProfileModalOpen(true)}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Switch Speller Profile"
           >
             <View style={styles.tabProfileAvatarCircle}>
               <CharacterAvatar

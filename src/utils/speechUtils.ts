@@ -55,25 +55,18 @@ export async function playCorrectSound(): Promise<void> {
     return;
   }
 
-  // 2. Mobile (iOS / Android): play bundled celebratory chime WAV via expo-audio
+  // 2. Mobile (iOS / Android): reuse single celebratory chime player
   try {
     await configureAudioSession();
     const ExpoAudio = require('expo-audio');
     if (ExpoAudio && typeof ExpoAudio.createAudioPlayer === 'function') {
-      if (chimeAudioPlayer) {
-        try {
-          chimeAudioPlayer.pause?.();
-          chimeAudioPlayer.remove?.();
-        } catch {
-          // ignore
-        }
-        chimeAudioPlayer = null;
+      if (!chimeAudioPlayer) {
+        chimeAudioPlayer = ExpoAudio.createAudioPlayer(CORRECT_CHIME_ASSET, {
+          keepAudioSessionActive: true
+        });
       }
-
-      chimeAudioPlayer = ExpoAudio.createAudioPlayer(CORRECT_CHIME_ASSET, {
-        keepAudioSessionActive: true
-      });
       chimeAudioPlayer.volume = 1.0;
+      await chimeAudioPlayer.seekTo?.(0);
       chimeAudioPlayer.play();
     }
   } catch (err) {

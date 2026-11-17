@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
-  Linking,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { AdBanner } from '../components/AdBanner';
 import { ConfettiBurst } from '../components/ConfettiBurst';
 import { BADGES, checkSpellingAnswer, computeLetterDiff } from '../utils/spellingUtils';
 import {
@@ -59,6 +61,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
   const [usedVoiceForCurrent, setUsedVoiceForCurrent] = useState(false);
   const [isAttempting, setIsAttempting] = useState(false);
   const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const submittingRef = useRef(false);
 
   // Pop-up modal for Definition / Use in a Sentence / Hint (none selected by default)
   const [activeClueModal, setActiveClueModal] = useState<ClueModalType>(null);
@@ -80,6 +83,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
 
   useEffect(() => {
     if (currentWord && !sessionFinished) {
+      submittingRef.current = false;
       setTypedSpelling('');
       setUsedVoiceForCurrent(false);
       setIsAttempting(false);
@@ -111,10 +115,11 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
   }
 
   const handleCheckAnswer = async (overrideSpelling?: string, fromVoice?: boolean) => {
-    if (submitted) return;
+    if (submitted || submittingRef.current) return;
     const answerToCheck = overrideSpelling !== undefined ? overrideSpelling : typedSpelling;
     if (!answerToCheck.trim()) return;
 
+    submittingRef.current = true;
     Keyboard.dismiss();
     const voiceUsed = fromVoice || usedVoiceForCurrent;
     const check = checkSpellingAnswer(answerToCheck, currentWord);
@@ -133,16 +138,20 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
       );
     }
 
-    const res = await onRecordAttempt({
-      wordId: currentWord.id,
-      isCorrect: check.isCorrect,
-      typedAttempt: answerToCheck.trim(),
-      usedVoice: voiceUsed
-    });
+    try {
+      const res = await onRecordAttempt({
+        wordId: currentWord.id,
+        isCorrect: check.isCorrect,
+        typedAttempt: answerToCheck.trim(),
+        usedVoice: voiceUsed
+      });
 
-    setLastPointsEarned(res.pointsEarned);
-    setSessionHoney((prev) => prev + res.pointsEarned);
-    setUnlockedBadgeIds(res.newlyUnlockedBadges);
+      setLastPointsEarned(res.pointsEarned);
+      setSessionHoney((prev) => prev + res.pointsEarned);
+      setUnlockedBadgeIds(res.newlyUnlockedBadges);
+    } catch (e) {
+      console.warn('Record attempt warning:', e);
+    }
   };
 
   const handleNextWord = () => {
@@ -232,13 +241,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.adBannerContainer, { width: '100%', maxWidth: 620, marginTop: 16 }]}>
-          <View style={styles.adBadgePill}>
-            <Text style={styles.adBadgeText}>AD</Text>
-          </View>
-          <Text style={styles.adBannerTitle}>Google AdMob Banner (Kids Safe • G-Rated)</Text>
-          <Text style={styles.adBannerSub}>Non-personalized family-safe ad space</Text>
-        </View>
+        <AdBanner variant="card" style={{ width: '100%', maxWidth: 620, marginTop: 16 }} />
       </ScrollView>
     );
   }
@@ -248,7 +251,10 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
   const hasCapital = /[A-Z]/.test(currentWord.word);
 
   return (
-    <View style={styles.outerWrap}>
+    <KeyboardAvoidingView
+      style={styles.outerWrap}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <ConfettiBurst triggerKey={confettiTrigger} />
 
       {/* Top Stage Header */}
@@ -371,6 +377,9 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
                 <TouchableOpacity
                   style={styles.clearInputBtn}
                   onPress={() => setTypedSpelling('')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear typed word"
                 >
                   <Text style={styles.clearInputBtnText}>✕</Text>
                 </TouchableOpacity>
@@ -574,15 +583,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
         )}
 
         {/* Google Ad Banner Slot (Shown on Initial Screen & Post-Answer Result Screen) */}
-        {(!isAttempting || submitted) && (
-          <View style={styles.adBannerContainer}>
-            <View style={styles.adBadgePill}>
-              <Text style={styles.adBadgeText}>AD</Text>
-            </View>
-            <Text style={styles.adBannerTitle}>Google AdMob Banner (Kids Safe • G-Rated)</Text>
-            <Text style={styles.adBannerSub}>Non-personalized family-safe ad space</Text>
-          </View>
-        )}
+        {(!isAttempting || submitted) && <AdBanner variant="card" />}
       </ScrollView>
 
       {/* Pop-up Modal for Definition / Use in a Sentence / Hint */}
@@ -607,6 +608,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
               </Text>
               <TouchableOpacity
                 style={styles.clueModalCloseIcon}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => {
                   stopSpeaking();
                   setActiveClueModal(null);
@@ -694,7 +696,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
           </View>
         </View>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
